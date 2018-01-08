@@ -50,27 +50,27 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     t1fs_to_flair.inputs.cost = 'mutualinfo'
     t1fs_to_flair.inputs.dof = 12
     t1fs_to_flair.inputs.bins = 256
-    t1fs_to_flair.inputs.searchr_x = [-25.0, 25.0]
-    t1fs_to_flair.inputs.searchr_y = [-25.0, 25.0]
-    t1fs_to_flair.inputs.searchr_z = [-25.0, 25.0]
+    t1fs_to_flair.inputs.searchr_x = [-25, 25]
+    t1fs_to_flair.inputs.searchr_y = [-25, 25]
+    t1fs_to_flair.inputs.searchr_z = [-25, 25]
     
     #%% step-2b flirt T1 to FLAIR 
     t1_to_flair = pe.Node(interface=fsl.FLIRT(), name='t1_to_flair')
     t1_to_flair.inputs.cost = 'mutualinfo'
     t1_to_flair.inputs.dof = 12
     t1_to_flair.inputs.bins = 256
-    t1_to_flair.inputs.searchr_x = [-25.0, 25.0]
-    t1_to_flair.inputs.searchr_y = [-25.0, 25.0]
-    t1_to_flair.inputs.searchr_z = [-25.0, 25.0]
+    t1_to_flair.inputs.searchr_x = [-25, 25]
+    t1_to_flair.inputs.searchr_y = [-25, 25]
+    t1_to_flair.inputs.searchr_z = [-25, 25]
     
     #%% step-2c flirt T2 to FLAIR 
     t2_to_flair = pe.Node(interface=fsl.FLIRT(), name='t2_to_flair')
     t2_to_flair.inputs.cost = 'mutualinfo'
     t2_to_flair.inputs.dof = 12
     t2_to_flair.inputs.bins = 256
-    t2_to_flair.inputs.searchr_x = [-25.0, 25.0]
-    t2_to_flair.inputs.searchr_y = [-25.0, 25.0]
-    t2_to_flair.inputs.searchr_z = [-25.0, 25.0]
+    t2_to_flair.inputs.searchr_x = [-25, 25]
+    t2_to_flair.inputs.searchr_y = [-25, 25]
+    t2_to_flair.inputs.searchr_z = [-25, 25]
         
    
     
@@ -152,8 +152,8 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     
 
     #%% step-9 create master file for bianca
-    create_master_file = pe.Node(interface=util.Function(input_names=['matrix_file'], output_names=['master_file'],
-                                                        function=create_master_file), name='create_master_file')
+    create_masterfile = pe.Node(interface=util.Function(input_names=['matrix_file'], output_names=['master_file'],
+                                                        function=create_master_file), name='create_masterfile')
     
 
 
@@ -209,24 +209,24 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
 
 
     #step 6a
-    wmhswf.connect(applymask_fl             , 'out_file',         denoise_fl  , 'in_file')
+    wmhswf.connect(applymask_fl             , 'out_file',         denoise_fl  , 'input_image')
     #step 6b
-    wmhswf.connect(applymask_t1             , 'out_file',         denoise_t1  , 'in_file')
+    wmhswf.connect(applymask_t1             , 'out_file',         denoise_t1  , 'input_image')
     #step 6c
-    wmhswf.connect(applymask_t2             , 'out_file',         denoise_t2  , 'in_file')    
+    wmhswf.connect(applymask_t2             , 'out_file',         denoise_t2  , 'input_image')    
     
     
     #step 7a
-    wmhswf.connect(denoise_fl             , 'denoised',           n4biasfieldcorrect_fl  , 'input_image')   
+    wmhswf.connect(denoise_fl             , 'output_image',           n4biasfieldcorrect_fl  , 'input_image')   
     #step 7b
-    wmhswf.connect(denoise_t1             , 'denoised',           n4biasfieldcorrect_t1  , 'input_image')   
+    wmhswf.connect(denoise_t1             , 'output_image',           n4biasfieldcorrect_t1  , 'input_image')   
     #step 7c
-    wmhswf.connect(denoise_t2             , 'denoised',           n4biasfieldcorrect_t2  , 'input_image')   
+    wmhswf.connect(denoise_t2             , 'output_image',           n4biasfieldcorrect_t2  , 'input_image')   
     
     
     #step 8
     wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       flair2mni   ,  'in_file')
-    wmhswf.connect(flair2mni              , 'out_matrix_file',    create_master_file, 'matrix_file')
+    wmhswf.connect(flair2mni              , 'out_matrix_file',    create_masterfile, 'matrix_file')
     
     
                    
@@ -234,7 +234,7 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     wmhswf.connect(inputnode               , 'subject_ids',       datasink, 'container')
     wmhswf.connect(inputnode               , 'outputdir',         datasink, 'base_directory')
 
-    wmhswf.connect(create_master_file      , 'master_file',       datasink, '@masterfile')
+    wmhswf.connect(create_masterfile      , 'master_file',       datasink, '@masterfile')
 
     
     return wmhswf

@@ -100,7 +100,7 @@ def main():
     
 
     wmhs_pipeline = create_wmhs_wf(scans_dir, work_dir, outputdir, subject_ids,
-                                           wfname='dsi_pipeline')
+                                           wfname='wmhs_pipeline')
         
     # Visualize workflow
     if args.debug:
