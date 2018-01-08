@@ -1,6 +1,5 @@
 from nipype.interfaces.freesurfer.preprocess import MRIConvert
-from nipype.interfaces.base import (traits, TraitedSpec, File)
-
+from .configoptions import WMHS_MASKS_DIR
 
    
 def convert_mgz(in_file):
@@ -24,31 +23,13 @@ def convert_mgz(in_file):
         return outputs['out_file']
 
 
-def create_master_file(in_bvals):
+def create_master_file(matrix_file):
     """
-    create acqparams file using input bvals <= 50
+    create master file required by bianca
     """
     
-    import numpy as np
-    import os
-    from dsi_pipeline.dtiutil import get_b0_indices
-    from dsi_pipeline.configoptions import ECHO_SPACING_MSEC, ECHO_TRAIN_LENGTH,PA_NUM
-    
-    b0_indices = get_b0_indices(in_bvals)
-    
-    #predefined constants
-    echo_train_duration_sec = ECHO_SPACING_MSEC * ( ECHO_TRAIN_LENGTH - 1 ) * 0.001
-
-    AP_string = "0 -1 0 %.3f" % (echo_train_duration_sec)
-    PA_string = "0 1 0 %.3f" % (echo_train_duration_sec)
-    
-    acqparams_file="acqparams.txt"
-    
-    acqparams = np.repeat([AP_string], len(b0_indices))
-    acqparams = np.append(acqparams, np.repeat([PA_string], PA_NUM))
-    #nipye will complain if fmt="%..." is used, so convert to str("%...")
-    np.savetxt(acqparams_file,acqparams, delimiter=" ",fmt=str("%s"))
+    import csv
         
-    return os.path.abspath(acqparams_file)
+    return os.path.abspath(matrix_file)
 
 

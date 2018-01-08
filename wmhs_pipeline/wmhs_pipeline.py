@@ -12,7 +12,6 @@ from nipype.interfaces.ants import N4BiasFieldCorrection
 
 from nipype import IdentityInterface, DataSink
 
-from .configoptions import WMHS_MASKS_DIR
 from .utils import convert_mgz, create_master_file
 
 
@@ -153,7 +152,7 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     
 
     #%% step-9 create master file for bianca
-    create_master_file = pe.Node(interface=util.Function(input_names=['querysubject_file'], output_names=['master_file'],
+    create_master_file = pe.Node(interface=util.Function(input_names=['matrix_file'], output_names=['master_file'],
                                                         function=create_master_file), name='create_master_file')
     
 
@@ -175,46 +174,35 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     #step 2a
     wmhswf.connect(convert_t1_mgz          , 'out_file',         t1fs_to_flair  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            t1fs_to_flair  , 'reference')
-    
     #step 2b
     wmhswf.connect(fileselector            , 'T1',               t1_to_flair  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            t1_to_flair  , 'reference')
-
     #step 2c
     wmhswf.connect(fileselector            , 'T2',               t2_to_flair  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            t2_to_flair  , 'reference')
         
-    
     #step 3
     wmhswf.connect(convert_bm_mgz          ,'out_file',          binarize_bm  , 'in_file')
     
-  
-
     #step 4a
     wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_bm  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_bm  , 'reference')
     wmhswf.connect(t1fs_to_flair           , 'out_matrix_file',  applyxfm_bm  , 'in_matrix_file')
-
     #step 4b
     wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_t1  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_t1  , 'reference')
     wmhswf.connect(t1_to_flair             , 'out_matrix_file',  applyxfm_t1  , 'in_matrix_file')
-
-
     #step 4c
     wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_t2  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_t2  , 'reference')
     wmhswf.connect(t2_to_flair             , 'out_matrix_file',  applyxfm_t2  , 'in_matrix_file')
 
-    
     #step 5a
     wmhswf.connect(applyxfm_bm             , 'out_file',         applymask_fl  , 'mask_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applymask_fl  , 'in_file')
-
     #step 5b
     wmhswf.connect(applyxfm_bm             , 'out_file',         applymask_t1  , 'mask_file')
     wmhswf.connect(applyxfm_t1             , 'out_file',         applymask_t1  , 'in_file')
-
     #step 5c
     wmhswf.connect(applyxfm_bm             , 'out_file',         applymask_t2  , 'mask_file')
     wmhswf.connect(applyxfm_t2             , 'out_file',         applymask_t2  , 'in_file')
@@ -222,40 +210,32 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
 
     #step 6a
     wmhswf.connect(applymask_fl             , 'out_file',         denoise_fl  , 'in_file')
-
     #step 6b
     wmhswf.connect(applymask_t1             , 'out_file',         denoise_t1  , 'in_file')
-
     #step 6c
     wmhswf.connect(applymask_t2             , 'out_file',         denoise_t2  , 'in_file')    
     
     
     #step 7a
     wmhswf.connect(denoise_fl             , 'denoised',           n4biasfieldcorrect_fl  , 'input_image')   
-    
     #step 7b
     wmhswf.connect(denoise_t1             , 'denoised',           n4biasfieldcorrect_t1  , 'input_image')   
-
     #step 7c
     wmhswf.connect(denoise_t2             , 'denoised',           n4biasfieldcorrect_t2  , 'input_image')   
     
     
     #step 8
     wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       flair2mni   ,  'in_file')
+    wmhswf.connect(flair2mni              , 'out_matrix_file',    create_master_file, 'matrix_file')
     
-    wmhswf.connect(flair2mni              , 'out_matrix_file',     
     
                    
     # outputs
     wmhswf.connect(inputnode               , 'subject_ids',       datasink, 'container')
     wmhswf.connect(inputnode               , 'outputdir',         datasink, 'base_directory')
 
-    wmhswf.connect(eddy_cuda               , 'out_movement_rms',  datasink, 'Eddy.@out_movement_rms')
-    wmhswf.connect(eddy_cuda               , 'out_outlier_report',datasink, 'Eddy.@out_outlier_report')
-    wmhswf.connect(eddy_cuda               , 'out_parameter',     datasink, 'Eddy.@out_parameter')
-    wmhswf.connect(eddy_cuda               , 'out_restricted_movement_rms',     datasink, 'Eddy.@out_restricted_movement_rms')
-    wmhswf.connect(eddy_cuda               , 'out_rotated_bvecs',     datasink, 'Eddy.@out_rotated_bvecs')
-    
+    wmhswf.connect(create_master_file      , 'master_file',       datasink, '@masterfile')
+
     
     return wmhswf
     
