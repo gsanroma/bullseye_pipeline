@@ -5,17 +5,19 @@ from nipype import SelectFiles
 import nipype.interfaces.utility as util
 
 from nipype.interfaces import fsl
-from nipype.interfaces.freesurfer.model import Binarize
+from nipype.interfaces.fsl.utils import Reorient2Std
 from nipype.interfaces.fsl.maths import ApplyMask
+
+from nipype.interfaces.freesurfer.model import Binarize
 from nipype.interfaces.ants import DenoiseImage
 from nipype.interfaces.ants import N4BiasFieldCorrection
 
 from nipype import IdentityInterface, DataSink
 
-from .utils import convert_mgz, create_master_file
+from .utils import convert_mgz, create_master_file_train,create_master_file_query, Bianca
+from .configoptions import BIANCA_CLASSIFIER_DATA
 
-
-def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs_pipeline'):
+def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False, name='wmhs_pipeline'):
     wmhswf = pe.Workflow(name=name)
     wmhswf.base_dir = work_dir
 
@@ -43,7 +45,9 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     convert_bm_mgz = pe.Node(interface=util.Function(input_names=['in_file'], output_names=['out_file'],
                                                      function=convert_mgz), name='convert_bm_mgz')
     
-    
+    # step 1-c reorient 2 std
+    reorient2std_fst1 = pe.Node(interface=Reorient2Std(), name= 'reorient2std_fst1')
+    reorient2std_bm = pe.Node(interface=Reorient2Std(), name= 'reorient2std_bm')
     
     #%% step-2a flirt T1FS to FLAIR 
     t1fs_to_flair = pe.Node(interface=fsl.FLIRT(), name='t1fs_to_flair')
@@ -82,7 +86,7 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
 
 
     #%% step-4a applyxfms BM
-    applyxfm_bm = pe.Node(interface=fsl.FLIRT(), name='applyxfm_bm')
+    applyxfm_bm = pe.Node(interface=fsl.FLIRT(),  name='applyxfm_bm')
     applyxfm_bm.inputs.apply_xfm = True
     applyxfm_bm.inputs.interp = 'nearestneighbour'
     
@@ -121,21 +125,21 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     
 
     #%% step-7a n4 fl
-    n4biasfieldcorrect_fl = pe.Node(interface=N4BiasFieldCorrection(), name='n4biascorrect_fl')
+    n4biasfieldcorrect_fl = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_fl')
     n4biasfieldcorrect_fl.inputs.dimension = 3
     n4biasfieldcorrect_fl.inputs.n_iterations = [50, 50, 30, 20]
     n4biasfieldcorrect_fl.inputs.convergence_threshold = 1e-6
     n4biasfieldcorrect_fl.inputs.bspline_fitting_distance = 300
     
     #%% step-7b n4 t1
-    n4biasfieldcorrect_t1 = pe.Node(interface=N4BiasFieldCorrection(), name='n4biascorrect_t1')
+    n4biasfieldcorrect_t1 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t1')
     n4biasfieldcorrect_t1.inputs.dimension = 3
     n4biasfieldcorrect_t1.inputs.n_iterations = [50, 50, 30, 20]
     n4biasfieldcorrect_t1.inputs.convergence_threshold = 1e-6
     n4biasfieldcorrect_t1.inputs.bspline_fitting_distance = 300
 
     #%% step-7c n4 t2
-    n4biasfieldcorrect_t2 = pe.Node(interface=N4BiasFieldCorrection(), name='n4biascorrect_t2')
+    n4biasfieldcorrect_t2 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t2')
     n4biasfieldcorrect_t2.inputs.dimension = 3
     n4biasfieldcorrect_t2.inputs.n_iterations = [50, 50, 30, 20]
     n4biasfieldcorrect_t2.inputs.convergence_threshold = 1e-6
@@ -152,9 +156,23 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     
 
     #%% step-9 create master file for bianca
-    create_masterfile = pe.Node(interface=util.Function(input_names=['matrix_file'], output_names=['master_file'],
-                                                        function=create_master_file), name='create_masterfile')
-    
+    if cts:
+        create_masterfile_tr = pe.Node(interface=util.Function(input_names=['flair', 't1w','t2w', 'fl2mni_matrix_file'], output_names=['master_file'],
+                                                        function=create_master_file_train), name='create_masterfile_tr')
+    else:
+        create_masterfile_qr = pe.Node(interface=util.Function(input_names=['flair', 't1w','t2w', 'fl2mni_matrix_file'], output_names=['master_file'],
+                                                        function=create_master_file_query), name='create_masterfile_qr')
+        bianca = pe.Node(interface=Bianca(), name='bianca')
+        bianca.inputs.querysubjectnum=1
+        bianca.inputs.brainmaskfeaturenum=1
+        bianca.inputs.featuresubset="1,2,3"
+        bianca.inputs.matfeaturenum=5
+        bianca.inputs.spatialweight=1.0
+        bianca.inputs.trainingpts=2000
+        bianca.inputs.nonlespts=10000
+        bianca.inputs.out_filename='bianca_wmhseg.nii.gz'
+        bianca.inputs.loadclassifierdata=BIANCA_CLASSIFIER_DATA
+
 
 
     #%% 17 collect outputs
@@ -170,9 +188,12 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     #step 1b
     wmhswf.connect(fileselector            , 'BMASK',            convert_bm_mgz, 'in_file')
     
+    #step 1c
+    wmhswf.connect(convert_bm_mgz          ,'out_file',          reorient2std_bm ,  'in_file')
+    wmhswf.connect(convert_t1_mgz          ,'out_file',          reorient2std_fst1, 'in_file')
     
     #step 2a
-    wmhswf.connect(convert_t1_mgz          , 'out_file',         t1fs_to_flair  , 'in_file')
+    wmhswf.connect(reorient2std_fst1       , 'out_file',         t1fs_to_flair  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            t1fs_to_flair  , 'reference')
     #step 2b
     wmhswf.connect(fileselector            , 'T1',               t1_to_flair  , 'in_file')
@@ -182,18 +203,19 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     wmhswf.connect(fileselector            , 'FLAIR',            t2_to_flair  , 'reference')
         
     #step 3
-    wmhswf.connect(convert_bm_mgz          ,'out_file',          binarize_bm  , 'in_file')
+    wmhswf.connect(reorient2std_bm         ,'out_file',          binarize_bm  , 'in_file')
     
-    #step 4a
+    #step 4a        print "\n\nRunning interface copy...\n\n"
+
     wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_bm  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_bm  , 'reference')
     wmhswf.connect(t1fs_to_flair           , 'out_matrix_file',  applyxfm_bm  , 'in_matrix_file')
     #step 4b
-    wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_t1  , 'in_file')
+    wmhswf.connect(fileselector            , 'T1',               applyxfm_t1  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_t1  , 'reference')
     wmhswf.connect(t1_to_flair             , 'out_matrix_file',  applyxfm_t1  , 'in_matrix_file')
     #step 4c
-    wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_t2  , 'in_file')
+    wmhswf.connect(fileselector            , 'T2',               applyxfm_t2  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_t2  , 'reference')
     wmhswf.connect(t2_to_flair             , 'out_matrix_file',  applyxfm_t2  , 'in_matrix_file')
 
@@ -226,16 +248,32 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='wmhs
     
     #step 8
     wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       flair2mni   ,  'in_file')
-    wmhswf.connect(flair2mni              , 'out_matrix_file',    create_masterfile, 'matrix_file')
     
-    
-                   
+    #step 9 if create training set
+    if cts:
+        wmhswf.connect(flair2mni              , 'out_matrix_file',    create_masterfile_tr, 'fl2mni_matrix_file')
+        wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       create_masterfile_tr, 'flair')
+        wmhswf.connect(n4biasfieldcorrect_t1  , 'output_image',       create_masterfile_tr, 't1w')
+        wmhswf.connect(n4biasfieldcorrect_t2  , 'output_image',       create_masterfile_tr, 't2w')
+        wmhswf.connect(create_masterfile_tr   , 'master_file',        datasink, '@masterfile')
+    else:
+        wmhswf.connect(flair2mni              , 'out_matrix_file',    create_masterfile_qr, 'fl2mni_matrix_file')
+        wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       create_masterfile_qr, 'flair')
+        wmhswf.connect(n4biasfieldcorrect_t1  , 'output_image',       create_masterfile_qr, 't1w')
+        wmhswf.connect(n4biasfieldcorrect_t2  , 'output_image',       create_masterfile_qr, 't2w')
+        wmhswf.connect(create_masterfile_qr   , 'master_file',        datasink, '@masterfile')
+        
+        #bianca
+        wmhswf.connect(create_masterfile_qr   , 'master_file',        bianca, 'master_file')
+        wmhswf.connect(bianca                 , 'out_file',          datasink,'@biancasegfile')
+
+           
     # outputs
     wmhswf.connect(inputnode               , 'subject_ids',       datasink, 'container')
     wmhswf.connect(inputnode               , 'outputdir',         datasink, 'base_directory')
+    
 
-    wmhswf.connect(create_masterfile      , 'master_file',       datasink, '@masterfile')
-
+    
     
     return wmhswf
     

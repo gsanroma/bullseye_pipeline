@@ -9,8 +9,8 @@ import os, sys,glob
 import argparse
 from itertools import chain
 
-def create_wmhs_wf(scans_dir, work_dir, outputdir,subject_ids, wfname='wmhs_pipeline'):
-    wf = create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, wfname)
+def create_wmhs_wf(scans_dir, work_dir, outputdir,subject_ids, cts=False, wfname='wmhs_pipeline'):
+    wf = create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts, wfname)
     wf.inputs.inputnode.subject_ids = subject_ids
     return wf
     
@@ -46,6 +46,9 @@ def main():
                         '(space separated).', \
                         default=None, required=False, nargs='+', action='append')
     
+    parser.add_argument('-c', '--create_training_set', help="Create Training Set",\
+                        required=False, action='store_true')
+    
     parser.add_argument('-b', '--debug', help='debug mode', action='store_true')
     
     parser.add_argument('-p', '--processes', help='overall number of parallel processes', \
@@ -58,6 +61,8 @@ def main():
                         default='wmhs_pipeline')
     
     args = parser.parse_args()
+    
+    create_training_set = args.create_training_set
     
     scans_dir = os.path.abspath(os.path.expandvars(args.scansdir))
     if not os.path.exists(scans_dir):
@@ -100,7 +105,7 @@ def main():
     
 
     wmhs_pipeline = create_wmhs_wf(scans_dir, work_dir, outputdir, subject_ids,
-                                           wfname='wmhs_pipeline')
+                                   cts=create_training_set, wfname='wmhs_pipeline')
         
     # Visualize workflow
     if args.debug:
