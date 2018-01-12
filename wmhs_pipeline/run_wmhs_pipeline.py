@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-
+from __future__ import print function
 from .wmhs_pipeline import create_wmhs_pipeline
 
 from nipype import config, logging
@@ -78,7 +78,7 @@ def main():
         subject_ids = [os.path.basename(s.rstrip('/')) for s in subject_ids]
 
 
-    print "Creating wmhs pipeline workflow..."
+    print ("Creating wmhs pipeline workflow...")
     work_dir = os.path.abspath(os.path.expandvars(args.workdir))
     outputdir = os.path.abspath(os.path.expandvars(args.outputdir))
     

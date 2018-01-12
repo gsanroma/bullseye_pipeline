@@ -205,7 +205,7 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
     #step 3
     wmhswf.connect(reorient2std_bm         ,'out_file',          binarize_bm  , 'in_file')
     
-    #step 4a        print "\n\nRunning interface copy...\n\n"
+    #step 4a        
 
     wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_bm  , 'in_file')
     wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_bm  , 'reference')
