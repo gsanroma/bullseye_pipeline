@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from __future__ import print function
+from __future__ import print_function
 from .wmhs_pipeline import create_wmhs_pipeline
 
 from nipype import config, logging
