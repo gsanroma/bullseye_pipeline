@@ -262,10 +262,14 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
         wmhswf.connect(n4biasfieldcorrect_t1  , 'output_image',       create_masterfile_qr, 't1w')
         wmhswf.connect(n4biasfieldcorrect_t2  , 'output_image',       create_masterfile_qr, 't2w')
         wmhswf.connect(create_masterfile_qr   , 'master_file',        datasink, '@masterfile')
+        wmhswf.connect(flair2mni              , 'out_matrix_file',    datasink, '@flair2mnimat')
+        wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       datasink, '@flair')
         
         #bianca
         wmhswf.connect(create_masterfile_qr   , 'master_file',        bianca, 'master_file')
-        wmhswf.connect(bianca                 , 'out_file',          datasink,'@biancasegfile')
+        wmhswf.connect(bianca                 , 'out_file',           datasink,'@biancasegfile')
+        
+        
 
            
     # outputs
