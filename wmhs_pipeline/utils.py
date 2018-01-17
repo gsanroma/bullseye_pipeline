@@ -1,4 +1,3 @@
-from nipype.interfaces.freesurfer.preprocess import MRIConvert
 from nipype.interfaces.fsl.base import CommandLine, CommandLineInputSpec
 from nipype.interfaces.base import (traits, TraitedSpec, File)
 
@@ -10,6 +9,7 @@ def convert_mgz(in_file):
     """
     convert mgz to nii.gz 
     """
+    from nipype.interfaces.freesurfer.preprocess import MRIConvert
     import os.path as op
 
     fname, ext = op.splitext(op.basename(in_file))
