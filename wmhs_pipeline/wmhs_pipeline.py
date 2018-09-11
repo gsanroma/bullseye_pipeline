@@ -486,6 +486,7 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
         wmhsppwf.connect(create_masterfile_qr    , 'master_file',        datasinkout,'BIANCA.@masterfile')
         
         wmhsppwf.connect(bianca                  , 'out_file',           datasinkout,'BIANCA.@biancasegfile')
+        wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           datasinkout,'BIANCA.@brainmask')
         
         #outputs for deepmedic
         wmhsppwf.connect(norm_fl                 , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilefl')
