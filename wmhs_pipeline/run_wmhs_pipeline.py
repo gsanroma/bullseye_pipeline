@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-from .wmhs_pipeline import create_wmhs_pipeline
+from .wmhs_pipeline import wmhs_pipeline
 
 from nipype import config, logging
 
@@ -9,8 +9,8 @@ import os, sys,glob
 import argparse
 from itertools import chain
 
-def create_wmhs_wf(scans_dir, work_dir, outputdir,subject_ids, cts=False, wfname='wmhs_pipeline'):
-    wf = create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts, wfname)
+def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, cts=False,  wfname='wmhs_preproc'):
+    wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,cts, wfname)
     wf.inputs.inputnode.subject_ids = subject_ids
     return wf
     
@@ -104,8 +104,8 @@ def main():
     logging.update_logging(config)
     
 
-    wmhs_pipeline = create_wmhs_wf(scans_dir, work_dir, outputdir, subject_ids,
-                                   cts=create_training_set, wfname='wmhs_pipeline')
+    wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
+                                   args.threads,cts=create_training_set,  wfname='wmhs_preproc')
         
     # Visualize workflow
     if args.debug:

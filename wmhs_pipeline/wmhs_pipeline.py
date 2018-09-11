@@ -11,15 +11,19 @@ from nipype.interfaces.fsl.maths import ApplyMask
 from nipype.interfaces.freesurfer.model import Binarize
 from nipype.interfaces.ants import DenoiseImage
 from nipype.interfaces.ants import N4BiasFieldCorrection
+from nipype.interfaces.ants import Registration
 
 from nipype import IdentityInterface, DataSink
 
-from .utils import convert_mgz, create_master_file_train,create_master_file_query, Bianca
+from .utils import *
+
 from .configoptions import BIANCA_CLASSIFIER_DATA
 
-def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False, name='wmhs_pipeline'):
-    wmhswf = pe.Workflow(name=name)
-    wmhswf.base_dir = work_dir
+
+
+def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=False,  name='wmhs_preproc'):
+    wmhsppwf = pe.Workflow(name=name)
+    wmhsppwf.base_dir = work_dir
 
     inputnode = pe.Node(interface=IdentityInterface(fields=['subject_ids', 'outputdir']), name='inputnode')
     inputnode.iterables = [('subject_ids', subject_ids)]
@@ -31,7 +35,7 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
                  "T1": "{subject_id}/*T1*.nii.gz",
                  "T2": "{subject_id}/*T2*.nii.gz",
                  "T1FS": "{subject_id}/orig*gz",
-                 "BMASK": "{subject_id}/brainmask*gz"}
+                 "ASEG": "{subject_id}/aseg*gz"}
                  
     fileselector = pe.Node(SelectFiles(templates), name='fileselect')
     fileselector.inputs.base_directory = scans_dir
@@ -41,15 +45,63 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
     convert_t1_mgz = pe.Node(interface=util.Function(input_names=['in_file'], output_names=['out_file'],
                                                           function=convert_mgz), name='convert_t1_mgz')
     
-    # step-1b convert brainmask mgz to brainmask.nii.gz if in mgz format
-    convert_bm_mgz = pe.Node(interface=util.Function(input_names=['in_file'], output_names=['out_file'],
-                                                     function=convert_mgz), name='convert_bm_mgz')
+    # step-1b convert aseg mgz to aseg.nii.gz if in mgz format
+    convert_aseg_mgz = pe.Node(interface=util.Function(input_names=['in_file'], output_names=['out_file'],
+                                                     function=convert_mgz), name='convert_aseg_mgz')
     
     # step 1-c reorient 2 std
     reorient2std_fst1 = pe.Node(interface=Reorient2Std(), name= 'reorient2std_fst1')
-    reorient2std_bm = pe.Node(interface=Reorient2Std(), name= 'reorient2std_bm')
+    reorient2std_aseg = pe.Node(interface=Reorient2Std(), name= 'reorient2std_aseg')
     
-    #%% step-2a flirt T1FS to FLAIR 
+    
+    #%%step 2: Denoise low resolution images
+    # step 2a: Denoise FLAIR
+    denoise_fl = pe.Node(interface=DenoiseImage(), name="denoise_fl")
+    denoise_fl.inputs.dimension = 3
+    denoise_fl.inputs.shrink_factor=2
+    denoise_fl.inputs.output_image="FLAIR_denoised.nii.gz"
+    
+    #%% step-2b denoise T1
+    denoise_t1 = pe.Node(interface=DenoiseImage(), name="denoise_t1")
+    denoise_t1.inputs.dimension = 3
+    denoise_t1.inputs.shrink_factor=2
+    denoise_t1.inputs.output_image="T1_denoised.nii.gz"
+        
+    #%% step-2c denoise T2
+    denoise_t2 = pe.Node(interface=DenoiseImage(), name="denoise_t2")
+    denoise_t2.inputs.dimension = 3
+    denoise_t2.inputs.shrink_factor=2
+    denoise_t2.inputs.output_image="T2_denoised.nii.gz"
+
+
+    #%% step-3: N4BiasFieldCorrect low res images
+    #step 3a: N4 FLAIR
+    n4biasfieldcorrect_fl = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_fl')
+    n4biasfieldcorrect_fl.inputs.dimension = 3
+    n4biasfieldcorrect_fl.inputs.n_iterations = [50, 50, 30, 20]
+    n4biasfieldcorrect_fl.inputs.convergence_threshold = 1e-6
+    n4biasfieldcorrect_fl.inputs.bspline_fitting_distance = 300
+    n4biasfieldcorrect_fl.inputs.output_image='FLAIR_denoised_n4.nii.gz'
+    
+    #%% step-3b N4 T1
+    n4biasfieldcorrect_t1 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t1')
+    n4biasfieldcorrect_t1.inputs.dimension = 3
+    n4biasfieldcorrect_t1.inputs.n_iterations = [50, 50, 30, 20]
+    n4biasfieldcorrect_t1.inputs.convergence_threshold = 1e-6
+    n4biasfieldcorrect_t1.inputs.bspline_fitting_distance = 300
+    n4biasfieldcorrect_t1.inputs.output_image='T1_denoised_n4.nii.gz'
+
+    #%% step-3c N4 T2
+    n4biasfieldcorrect_t2 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t2')
+    n4biasfieldcorrect_t2.inputs.dimension = 3
+    n4biasfieldcorrect_t2.inputs.n_iterations = [50, 50, 30, 20]
+    n4biasfieldcorrect_t2.inputs.convergence_threshold = 1e-6
+    n4biasfieldcorrect_t2.inputs.bspline_fitting_distance = 300
+    n4biasfieldcorrect_t2.inputs.output_image='T2_denoised_n4.nii.gz'
+    
+
+    #%% step-4: Register FST1, T1, T2 to FLAIR using FLIRT
+    #step-4a flirt T1FS to FLAIR 
     t1fs_to_flair = pe.Node(interface=fsl.FLIRT(), name='t1fs_to_flair')
     t1fs_to_flair.inputs.cost = 'mutualinfo'
     t1fs_to_flair.inputs.dof = 12
@@ -57,8 +109,12 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
     t1fs_to_flair.inputs.searchr_x = [-25, 25]
     t1fs_to_flair.inputs.searchr_y = [-25, 25]
     t1fs_to_flair.inputs.searchr_z = [-25, 25]
-    
-    #%% step-2b flirt T1 to FLAIR 
+    t1fs_to_flair.inputs.rigid2D=True
+    t1fs_to_flair.inputs.interp='trilinear'
+    t1fs_to_flair.inputs.out_matrix_file='FST1.mat'
+    t1fs_to_flair.inputs.out_file='FST1Warped.nii.gz'
+
+    #%% step-4b flirt T1 to FLAIR 
     t1_to_flair = pe.Node(interface=fsl.FLIRT(), name='t1_to_flair')
     t1_to_flair.inputs.cost = 'mutualinfo'
     t1_to_flair.inputs.dof = 12
@@ -66,8 +122,12 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
     t1_to_flair.inputs.searchr_x = [-25, 25]
     t1_to_flair.inputs.searchr_y = [-25, 25]
     t1_to_flair.inputs.searchr_z = [-25, 25]
+    t1_to_flair.inputs.rigid2D=True
+    t1_to_flair.inputs.interp='trilinear'
+    t1_to_flair.inputs.out_matrix_file='T1.mat'
+    t1_to_flair.inputs.out_file='T1Warped.nii.gz'
     
-    #%% step-2c flirt T2 to FLAIR 
+    #%% step-4c flirt T2 to FLAIR 
     t2_to_flair = pe.Node(interface=fsl.FLIRT(), name='t2_to_flair')
     t2_to_flair.inputs.cost = 'mutualinfo'
     t2_to_flair.inputs.dof = 12
@@ -75,93 +135,186 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
     t2_to_flair.inputs.searchr_x = [-25, 25]
     t2_to_flair.inputs.searchr_y = [-25, 25]
     t2_to_flair.inputs.searchr_z = [-25, 25]
+    t2_to_flair.inputs.rigid2D=True
+    t2_to_flair.inputs.interp='trilinear'
+    t2_to_flair.inputs.out_matrix_file='T2.mat'
+    t2_to_flair.inputs.out_file='T2Warped.nii.gz'
+    
+    
+    #%% step-4d flirt aseg to FLAIR
+    aseg_to_flair = pe.Node(interface=fsl.FLIRT(), name='aseg_to_flair')
+    aseg_to_flair.inputs.interp='nearestneighbour'
+    aseg_to_flair.inputs.apply_xfm=True
+    aseg_to_flair.inputs.out_file='FLAIRaseg.nii.gz'
+    
+    
+    #%%step-5: Create brainmask in FLAIR space
+    compute_mask_from_aseg = pe.Node(interface=util.Function(input_names=['in_file'], output_names=['out_file'],
+                                                          function=compute_mask), name='compute_mask_from_aseg')
+    
+    
+    #%%step-6a: Convert XFM T1
+    convert_t1_xfm = pe.Node(interface=fsl.ConvertXFM(), name='convert_t1_xfm')
+    convert_t1_xfm.inputs.invert_xfm=True
+    convert_t1_xfm.inputs.out_file='T1inv.mat'
+    
+    #step-6b: Convert XFM T2
+    convert_t2_xfm = pe.Node(interface=fsl.ConvertXFM(), name='convert_t2_xfm')
+    convert_t2_xfm.inputs.invert_xfm=True
+    convert_t2_xfm.inputs.out_file='T2inv.mat'
+    
+    
+    #%%step-7: warp brainmask to T1, T2
+    #step 7a: brainmask to T1
+    warp_bm_to_t1 = pe.Node(interface=fsl.FLIRT(), name='brainmask_to_t1')
+    warp_bm_to_t1.inputs.interp='nearestneighbour'
+    warp_bm_to_t1.inputs.apply_xfm=True
+    warp_bm_to_t1.inputs.out_file='brainmaskT1.nii.gz'
+    
+    #step 7b: brainmask to T2
+    warp_bm_to_t2 = pe.Node(interface=fsl.FLIRT(), name='brainmask_to_t2')
+    warp_bm_to_t2.inputs.interp='nearestneighbour'
+    warp_bm_to_t2.inputs.apply_xfm=True
+    warp_bm_to_t2.inputs.out_file='brainmaskT2.nii.gz'
+    
+    
+
+
+    #%%step 8: Denoise with High resolution mask
+    # step 8a: Denoise FLAIR
+    denoise_hi_fl = pe.Node(interface=DenoiseImageWithMask(), name="denoise_hi_fl")
+    denoise_hi_fl.inputs.dimension = 3
+    denoise_hi_fl.inputs.output_image='FLAIR_denoised_hires.nii.gz'
+    
+    #%% step-8b denoise T1
+    denoise_hi_t1 = pe.Node(interface=DenoiseImageWithMask(), name="denoise_hi_t1")
+    denoise_hi_t1.inputs.dimension = 3
+    denoise_hi_t1.inputs.output_image='T1_denoised_hires.nii.gz'
         
-   
-    
-    #%% step-3 binarize brainmask 
-    binarize_bm = pe.Node(interface=Binarize(), name='binarize_bm')
-    binarize_bm.inputs.max = 1000
-    binarize_bm.inputs.min = 1
-    
+    #%% step-8c denoise T2
+    denoise_hi_t2 = pe.Node(interface=DenoiseImageWithMask(), name="denoise_hi_t2")
+    denoise_hi_t2.inputs.dimension = 3
+    denoise_hi_t2.inputs.output_image='T2_denoised_hires.nii.gz'
 
 
-    #%% step-4a applyxfms BM
-    applyxfm_bm = pe.Node(interface=fsl.FLIRT(),  name='applyxfm_bm')
-    applyxfm_bm.inputs.apply_xfm = True
-    applyxfm_bm.inputs.interp = 'nearestneighbour'
-    
-    #%% step-4b applyxfms BM
-    applyxfm_t1 = pe.Node(interface=fsl.FLIRT(), name='applyxfm_t1')
-    applyxfm_t1.inputs.apply_xfm = True
-    applyxfm_t1.inputs.interp = 'trilinear'
-
-    #%% step-4c applyxfms BM
-    applyxfm_t2 = pe.Node(interface=fsl.FLIRT(), name='applyxfm_t2')
-    applyxfm_t2.inputs.apply_xfm = True
-    applyxfm_t2.inputs.interp = 'trilinear'
-            
-    
-    #%% step-5a apply mask to flair
-    applymask_fl = pe.Node(interface=ApplyMask(), name='applymask_fl')
-    
-    #%% step-5b apply mask to t1
-    applymask_t1 = pe.Node(interface=ApplyMask(), name='applymask_t1')
-        
-    #%% step-5c apply mask to t2
-    applymask_t2 = pe.Node(interface=ApplyMask(), name='applymask_t2')
-    
-
-    #%% step-6a denoise fl
-    denoise_fl = pe.Node(interface=DenoiseImage(), name="denoise_fl")
-    denoise_fl.inputs.dimension = 3    
-    
-    #%% step-6b denoise fl
-    denoise_t1 = pe.Node(interface=DenoiseImage(), name="denoise_t1")
-    denoise_t1.inputs.dimension = 3    
-        
-    #%% step-6c denoise fl
-    denoise_t2 = pe.Node(interface=DenoiseImage(), name="denoise_t2")
-    denoise_t2.inputs.dimension = 3    
-    
-
-    #%% step-7a n4 fl
-    n4biasfieldcorrect_fl = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_fl')
-    n4biasfieldcorrect_fl.inputs.dimension = 3
-    n4biasfieldcorrect_fl.inputs.n_iterations = [50, 50, 30, 20]
-    n4biasfieldcorrect_fl.inputs.convergence_threshold = 1e-6
-    n4biasfieldcorrect_fl.inputs.bspline_fitting_distance = 300
-    
-    #%% step-7b n4 t1
-    n4biasfieldcorrect_t1 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t1')
-    n4biasfieldcorrect_t1.inputs.dimension = 3
-    n4biasfieldcorrect_t1.inputs.n_iterations = [50, 50, 30, 20]
-    n4biasfieldcorrect_t1.inputs.convergence_threshold = 1e-6
-    n4biasfieldcorrect_t1.inputs.bspline_fitting_distance = 300
-
-    #%% step-7c n4 t2
-    n4biasfieldcorrect_t2 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t2')
-    n4biasfieldcorrect_t2.inputs.dimension = 3
-    n4biasfieldcorrect_t2.inputs.n_iterations = [50, 50, 30, 20]
-    n4biasfieldcorrect_t2.inputs.convergence_threshold = 1e-6
-    n4biasfieldcorrect_t2.inputs.bspline_fitting_distance = 300
 
 
+    #%% step-9: N4BiasFieldCorrect hi res images
+    #step 9a: N4 FLAIR
+    n4biasfieldcorrect_hi_fl = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_hi_fl')
+    n4biasfieldcorrect_hi_fl.inputs.dimension = 3
+    n4biasfieldcorrect_hi_fl.inputs.n_iterations = [50, 50, 30, 20]
+    n4biasfieldcorrect_hi_fl.inputs.convergence_threshold = 1e-6
+    n4biasfieldcorrect_hi_fl.inputs.bspline_fitting_distance = 300
+    n4biasfieldcorrect_hi_fl.inputs.output_image='FLAIR_denoised_n4_hires.nii.gz'
     
-    #%% step-8 fl to mni
-    flair2mni = pe.Node(interface=fsl.FLIRT(), name='flair2mni')
-    flair2mni.inputs.cost = 'mutualinfo'
-    flair2mni.inputs.dof = 12
-    flair2mni.inputs.reference = fsl.Info.standard_image('MNI152_T1_1mm_brain.nii.gz')
-    
-    
+    #%% step-9b N4 T1
+    n4biasfieldcorrect_hi_t1 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_hi_t1')
+    n4biasfieldcorrect_hi_t1.inputs.dimension = 3
+    n4biasfieldcorrect_hi_t1.inputs.n_iterations = [50, 50, 30, 20]
+    n4biasfieldcorrect_hi_t1.inputs.convergence_threshold = 1e-6
+    n4biasfieldcorrect_hi_t1.inputs.bspline_fitting_distance = 300
+    n4biasfieldcorrect_hi_t1.inputs.output_image='T1_denoised_n4_hires.nii.gz'
 
-    #%% step-9 create master file for bianca
+    #%% step-9c N4 T2
+    n4biasfieldcorrect_hi_t2 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_hi_t2')
+    n4biasfieldcorrect_hi_t2.inputs.dimension = 3
+    n4biasfieldcorrect_hi_t2.inputs.n_iterations = [50, 50, 30, 20]
+    n4biasfieldcorrect_hi_t2.inputs.convergence_threshold = 1e-6
+    n4biasfieldcorrect_hi_t2.inputs.bspline_fitting_distance = 300
+    n4biasfieldcorrect_hi_t2.inputs.output_image='T2_denoised_n4_hires.nii.gz'
+
+
+
+    #%% step 10: warp T1, T2 to FLAIR hires 
+    #step-10a flirt T1 to FLAIR 
+    t1_to_flair_hi = pe.Node(interface=fsl.FLIRT(), name='t1_to_flair_hi')
+    t1_to_flair_hi.inputs.out_file='T1Warped_denoised_n4_hires.nii.gz'
+    t1_to_flair_hi.inputs.apply_xfm=True
+    t1_to_flair_hi.inputs.interp='trilinear'
+    
+    #%% step-10b flirt T2 to FLAIR 
+    t2_to_flair_hi = pe.Node(interface=fsl.FLIRT(), name='t2_to_flair_hi')
+    t2_to_flair_hi.inputs.out_file='T2Warped_denoised_n4_hires.nii.gz'
+    t2_to_flair_hi.inputs.apply_xfm=True
+    t2_to_flair_hi.inputs.interp='trilinear'
+    
+    
+    #%%step 11: register FLAIR to MNI
+    
+    ants_register_flair2mni = pe.Node(interface=Registration(), name='flair2mni')
+    ants_register_flair2mni.inputs.dimension=3
+    ants_register_flair2mni.inputs.output_transform_prefix = "FLAIR_to_template_"
+    ants_register_flair2mni.inputs.float=True
+    ants_register_flair2mni.inputs.use_histogram_matching=False
+    ants_register_flair2mni.inputs.write_composite_transform = False
+    ants_register_flair2mni.inputs.collapse_output_transforms = True
+    ants_register_flair2mni.inputs.initialize_transforms_per_stage = False
+    ants_register_flair2mni.inputs.interpolation = 'Linear'
+    ants_register_flair2mni.inputs.metric = ['MI']*2
+    ants_register_flair2mni.inputs.smoothing_sigmas = [[4,2,1,0],[4,2,1,0]]
+    ants_register_flair2mni.inputs.shrink_factors = [[8,4,2,1],[8,4,2,1]]
+    ants_register_flair2mni.inputs.transforms = ['Rigid','Affine']
+    ants_register_flair2mni.inputs.transform_parameters = [(0.1,),(0.1,)] 
+    ants_register_flair2mni.inputs.number_of_iterations = [[1000, 500, 250, 0],[1000,500,250,0]]
+    ants_register_flair2mni.inputs.metric_weight=[1]*2
+    ants_register_flair2mni.inputs.radius_or_number_of_bins = [32]*2
+    ants_register_flair2mni.inputs.sampling_strategy = ['Regular','Regular']
+    ants_register_flair2mni.inputs.sampling_percentage = [0.25, 0.25]
+    ants_register_flair2mni.inputs.convergence_threshold = [1.e-8, 1.e-8]
+    ants_register_flair2mni.inputs.convergence_window_size = [10]*2
+    ants_register_flair2mni.inputs.output_warped_image='FLAIRWarped_to_template.nii.gz'
+    ants_register_flair2mni.inputs.fixed_image = fsl.Info.standard_image('MNI152_T1_1mm.nii.gz')
+    ants_register_flair2mni.inputs.num_threads=num_threads
+    
+  
+    #%%step 12: convert transform .mat file to .txt
+    convert_transform_file = pe.Node(interface=ConvertTransformFile(), name='convert_transform_file')
+    convert_transform_file.inputs.dimension=3
+    
+    #%%step 13: convert ANTs .txt transform to FSL
+    c3d_affine=pe.Node(interface=C3DAffineTool(), name='c3d_affine')
+    c3d_affine.inputs.reference_file=fsl.Info.standard_image('MNI152_T1_1mm.nii.gz')
+    c3d_affine.inputs.ras2fsl=True
+    c3d_affine.inputs.out_filename='FLAIR_to_template_fsl.mat'
+    
+    #%%step 14a maskout image FLAIR
+    maskout_fl = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
+                                                          function=maskout_image), name='maskout_fl')
+    
+    #step 14b maskout image T1warped
+    maskout_t1w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
+                                                          function=maskout_image), name='maskout_t1w')
+     #step 14c maskout image T2warped
+    maskout_t2w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
+                                                          function=maskout_image), name='maskout_t2w')
+    
+    
+    #%%step 15a normalize image FLAIR
+    norm_fl = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['norm_outfile'],
+                                                          function=normalize_image), name='norm_fl')
+    
+    #step 15b normalize image T1warped
+    norm_t1w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['norm_outfile'],
+                                                          function=normalize_image), name='norm_t1w')
+     #step 15c normalize image T2warped
+    norm_t2w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['norm_outfile'],
+                                                          function=normalize_image), name='norm_t2w')
+    
+    #%%step 16 create inclusion mask to maskout all detections outside white matter using aseg in FLAIR space
+    inclusion_mask_from_aseg = pe.Node(interface=util.Function(input_names=['aseg_file'], output_names=['out_file'],
+                                                          function=inclusion_mask), name='inclusion_mask_from_aseg')
+    
+    
+    
+    #%% step-17 create master file for bianca
     if cts:
         create_masterfile_tr = pe.Node(interface=util.Function(input_names=['flair', 't1w','t2w', 'fl2mni_matrix_file'], output_names=['master_file'],
                                                         function=create_master_file_train), name='create_masterfile_tr')
     else:
         create_masterfile_qr = pe.Node(interface=util.Function(input_names=['flair', 't1w','t2w', 'fl2mni_matrix_file'], output_names=['master_file'],
                                                         function=create_master_file_query), name='create_masterfile_qr')
+        
         bianca = pe.Node(interface=Bianca(), name='bianca')
         bianca.inputs.querysubjectnum=1
         bianca.inputs.brainmaskfeaturenum=1
@@ -174,111 +327,175 @@ def create_wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, cts=False,
         bianca.inputs.loadclassifierdata=BIANCA_CLASSIFIER_DATA
 
 
+        
 
-    #%% 17 collect outputs
-    datasink = pe.Node(interface=DataSink(), name='datasinker')
-    datasink.inputs.parameterization=False
-    
+
+    #%% 18 collect outputs
+    datasinkout = pe.Node(interface=DataSink(), name='datasinkout')
+    datasinkout.inputs.parameterization=False
 
     # %% workflow connections
     
     #step 1a
-    wmhswf.connect(inputnode               , 'subject_ids',      fileselector, 'subject_id')
-    wmhswf.connect(fileselector            , 'T1FS',             convert_t1_mgz, 'in_file')
+    wmhsppwf.connect(inputnode        , 'subject_ids',      fileselector,'subject_id')
+    wmhsppwf.connect(fileselector     , 'T1FS',             convert_t1_mgz, 'in_file')
     #step 1b
-    wmhswf.connect(fileselector            , 'BMASK',            convert_bm_mgz, 'in_file')
+    wmhsppwf.connect(fileselector     , 'ASEG',             convert_aseg_mgz,'in_file')
     
     #step 1c
-    wmhswf.connect(convert_bm_mgz          ,'out_file',          reorient2std_bm ,  'in_file')
-    wmhswf.connect(convert_t1_mgz          ,'out_file',          reorient2std_fst1, 'in_file')
+    wmhsppwf.connect(convert_aseg_mgz ,'out_file',          reorient2std_aseg,'in_file')
+    wmhsppwf.connect(convert_t1_mgz   ,'out_file',          reorient2std_fst1,'in_file')
     
     #step 2a
-    wmhswf.connect(reorient2std_fst1       , 'out_file',         t1fs_to_flair  , 'in_file')
-    wmhswf.connect(fileselector            , 'FLAIR',            t1fs_to_flair  , 'reference')
+    wmhsppwf.connect(fileselector     , 'FLAIR',            denoise_fl  , 'input_image')
     #step 2b
-    wmhswf.connect(fileselector            , 'T1',               t1_to_flair  , 'in_file')
-    wmhswf.connect(fileselector            , 'FLAIR',            t1_to_flair  , 'reference')
+    wmhsppwf.connect(fileselector     , 'T1',               denoise_t1  , 'input_image')
     #step 2c
-    wmhswf.connect(fileselector            , 'T2',               t2_to_flair  , 'in_file')
-    wmhswf.connect(fileselector            , 'FLAIR',            t2_to_flair  , 'reference')
-        
-    #step 3
-    wmhswf.connect(reorient2std_bm         ,'out_file',          binarize_bm  , 'in_file')
+    wmhsppwf.connect(fileselector     , 'T2',               denoise_t2  , 'input_image')    
     
-    #step 4a        
-
-    wmhswf.connect(binarize_bm             , 'binary_file',      applyxfm_bm  , 'in_file')
-    wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_bm  , 'reference')
-    wmhswf.connect(t1fs_to_flair           , 'out_matrix_file',  applyxfm_bm  , 'in_matrix_file')
+    #step 3a
+    wmhsppwf.connect(denoise_fl       , 'output_image',           n4biasfieldcorrect_fl  , 'input_image')   
+    #step 3b
+    wmhsppwf.connect(denoise_t1       , 'output_image',           n4biasfieldcorrect_t1  , 'input_image')   
+    #step 3c
+    wmhsppwf.connect(denoise_t2       , 'output_image',           n4biasfieldcorrect_t2  , 'input_image')   
+    
+    
+    #step 4a
+    wmhsppwf.connect(reorient2std_fst1       , 'out_file',         t1fs_to_flair  , 'in_file')
+    wmhsppwf.connect(n4biasfieldcorrect_fl   , 'output_image',     t1fs_to_flair  , 'reference')
     #step 4b
-    wmhswf.connect(fileselector            , 'T1',               applyxfm_t1  , 'in_file')
-    wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_t1  , 'reference')
-    wmhswf.connect(t1_to_flair             , 'out_matrix_file',  applyxfm_t1  , 'in_matrix_file')
+    wmhsppwf.connect(n4biasfieldcorrect_t1   , 'output_image',     t1_to_flair  , 'in_file')
+    wmhsppwf.connect(n4biasfieldcorrect_fl   , 'output_image',     t1_to_flair  , 'reference')
     #step 4c
-    wmhswf.connect(fileselector            , 'T2',               applyxfm_t2  , 'in_file')
-    wmhswf.connect(fileselector            , 'FLAIR',            applyxfm_t2  , 'reference')
-    wmhswf.connect(t2_to_flair             , 'out_matrix_file',  applyxfm_t2  , 'in_matrix_file')
-
-    #step 5a
-    wmhswf.connect(applyxfm_bm             , 'out_file',         applymask_fl  , 'mask_file')
-    wmhswf.connect(fileselector            , 'FLAIR',            applymask_fl  , 'in_file')
-    #step 5b
-    wmhswf.connect(applyxfm_bm             , 'out_file',         applymask_t1  , 'mask_file')
-    wmhswf.connect(applyxfm_t1             , 'out_file',         applymask_t1  , 'in_file')
-    #step 5c
-    wmhswf.connect(applyxfm_bm             , 'out_file',         applymask_t2  , 'mask_file')
-    wmhswf.connect(applyxfm_t2             , 'out_file',         applymask_t2  , 'in_file')
-
-
+    wmhsppwf.connect(n4biasfieldcorrect_t2   , 'output_image',     t2_to_flair  , 'in_file')
+    wmhsppwf.connect(n4biasfieldcorrect_fl   , 'output_image',     t2_to_flair  , 'reference')
+    #step 4d
+    wmhsppwf.connect(reorient2std_aseg       ,'out_file',          aseg_to_flair  , 'in_file')
+    wmhsppwf.connect(n4biasfieldcorrect_fl   , 'output_image',     aseg_to_flair  , 'reference')
+    wmhsppwf.connect(t1fs_to_flair           , 'out_matrix_file',  aseg_to_flair  , 'in_matrix_file')
+    
+    #step 5
+    wmhsppwf.connect(aseg_to_flair           , 'out_file',         compute_mask_from_aseg,'in_file')
+    
+    
     #step 6a
-    wmhswf.connect(applymask_fl             , 'out_file',         denoise_fl  , 'input_image')
+    wmhsppwf.connect(t1_to_flair             , 'out_matrix_file',  convert_t1_xfm, 'in_file')
     #step 6b
-    wmhswf.connect(applymask_t1             , 'out_file',         denoise_t1  , 'input_image')
-    #step 6c
-    wmhswf.connect(applymask_t2             , 'out_file',         denoise_t2  , 'input_image')    
+    wmhsppwf.connect(t2_to_flair             , 'out_matrix_file',  convert_t2_xfm, 'in_file')
     
     
     #step 7a
-    wmhswf.connect(denoise_fl             , 'output_image',           n4biasfieldcorrect_fl  , 'input_image')   
+    wmhsppwf.connect(convert_t1_xfm          , 'out_file',     warp_bm_to_t1,   'in_matrix_file')
+    wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',     warp_bm_to_t1,   'in_file')
+    wmhsppwf.connect(n4biasfieldcorrect_t1   , 'output_image', warp_bm_to_t1, 'reference')
+    
     #step 7b
-    wmhswf.connect(denoise_t1             , 'output_image',           n4biasfieldcorrect_t1  , 'input_image')   
-    #step 7c
-    wmhswf.connect(denoise_t2             , 'output_image',           n4biasfieldcorrect_t2  , 'input_image')   
+    wmhsppwf.connect(convert_t2_xfm          , 'out_file',     warp_bm_to_t2,   'in_matrix_file')
+    wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',     warp_bm_to_t2,   'in_file')
+    wmhsppwf.connect(n4biasfieldcorrect_t2   , 'output_image', warp_bm_to_t2,   'reference')
     
     
-    #step 8
-    wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       flair2mni   ,  'in_file')
+    #step 8a
+    wmhsppwf.connect(fileselector            , 'FLAIR',            denoise_hi_fl  , 'input_image')
+    wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',         denoise_hi_fl  , 'mask_image')
+    #step 8b
+    wmhsppwf.connect(fileselector            , 'T1',               denoise_hi_t1  , 'input_image')
+    wmhsppwf.connect(warp_bm_to_t1           , 'out_file',         denoise_hi_t1  , 'mask_image')
+    #step 8c
+    wmhsppwf.connect(fileselector            , 'T2',               denoise_hi_t2  , 'input_image')  
+    wmhsppwf.connect(warp_bm_to_t2           , 'out_file',         denoise_hi_t2  , 'mask_image')
     
-    #step 9 if create training set
-    if cts:
-        wmhswf.connect(flair2mni              , 'out_matrix_file',    create_masterfile_tr, 'fl2mni_matrix_file')
-        wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       create_masterfile_tr, 'flair')
-        wmhswf.connect(n4biasfieldcorrect_t1  , 'output_image',       create_masterfile_tr, 't1w')
-        wmhswf.connect(n4biasfieldcorrect_t2  , 'output_image',       create_masterfile_tr, 't2w')
-        wmhswf.connect(create_masterfile_tr   , 'master_file',        datasink, '@masterfile')
-    else:
-        wmhswf.connect(flair2mni              , 'out_matrix_file',    create_masterfile_qr, 'fl2mni_matrix_file')
-        wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       create_masterfile_qr, 'flair')
-        wmhswf.connect(n4biasfieldcorrect_t1  , 'output_image',       create_masterfile_qr, 't1w')
-        wmhswf.connect(n4biasfieldcorrect_t2  , 'output_image',       create_masterfile_qr, 't2w')
-        wmhswf.connect(create_masterfile_qr   , 'master_file',        datasink, '@masterfile')
-        wmhswf.connect(flair2mni              , 'out_matrix_file',    datasink, '@flair2mnimat')
-        wmhswf.connect(n4biasfieldcorrect_fl  , 'output_image',       datasink, '@flair')
+    #step 9a
+    wmhsppwf.connect(denoise_hi_fl           , 'output_image',     n4biasfieldcorrect_hi_fl  , 'input_image')   
+    #step 9b
+    wmhsppwf.connect(denoise_hi_t1           , 'output_image',     n4biasfieldcorrect_hi_t1  , 'input_image')   
+    #step 9c
+    wmhsppwf.connect(denoise_hi_t2           , 'output_image',     n4biasfieldcorrect_hi_t2  , 'input_image')
+    
+    #step 10a
+    wmhsppwf.connect(n4biasfieldcorrect_hi_fl , 'output_image',    t1_to_flair_hi, 'reference')
+    wmhsppwf.connect(n4biasfieldcorrect_hi_t1 , 'output_image',    t1_to_flair_hi, 'in_file')
+    wmhsppwf.connect(t1_to_flair              , 'out_matrix_file', t1_to_flair_hi, 'in_matrix_file')
+    
+    #step 10b
+    wmhsppwf.connect(n4biasfieldcorrect_hi_fl , 'output_image',    t2_to_flair_hi, 'reference')
+    wmhsppwf.connect(n4biasfieldcorrect_hi_t2 , 'output_image',    t2_to_flair_hi, 'in_file')
+    wmhsppwf.connect(t2_to_flair              , 'out_matrix_file', t2_to_flair_hi, 'in_matrix_file')
+    
+    
+    #step 11   
+    wmhsppwf.connect(n4biasfieldcorrect_hi_fl  , 'output_image',       ants_register_flair2mni, 'moving_image')
+    
+    #step 12
+    wmhsppwf.connect(ants_register_flair2mni, ('forward_transforms', get_first_file), convert_transform_file, 'in_file')
+    
+    #step 13
+    wmhsppwf.connect(n4biasfieldcorrect_hi_fl   , 'output_image',      c3d_affine, 'source_file')
+    wmhsppwf.connect(convert_transform_file     , 'out_file',          c3d_affine, 'transform_file')
+    
+    #step 14
+    
+    wmhsppwf.connect(compute_mask_from_aseg     , 'out_file',          maskout_fl, 'mask_file')
+    wmhsppwf.connect(n4biasfieldcorrect_hi_fl   , 'output_image',      maskout_fl, 'image_file')
         
-        #bianca
-        wmhswf.connect(create_masterfile_qr   , 'master_file',        bianca, 'master_file')
-        wmhswf.connect(bianca                 , 'out_file',           datasink,'@biancasegfile')
+    wmhsppwf.connect(compute_mask_from_aseg      , 'out_file',         maskout_t1w, 'mask_file')
+    wmhsppwf.connect(t1_to_flair_hi             , 'out_file',          maskout_t1w, 'image_file')
         
-        
+    wmhsppwf.connect(compute_mask_from_aseg      , 'out_file',         maskout_t2w, 'mask_file')
+    wmhsppwf.connect(t2_to_flair_hi             , 'out_file',          maskout_t2w, 'image_file')
+    
 
-           
+    #step 15
+    
+    wmhsppwf.connect(compute_mask_from_aseg     , 'out_file',         norm_fl, 'mask_file')
+    wmhsppwf.connect(maskout_fl                 , 'maskoutfile',      norm_fl, 'image_file')
+        
+    wmhsppwf.connect(compute_mask_from_aseg     , 'out_file',         norm_t1w, 'mask_file')
+    wmhsppwf.connect(maskout_t1w                , 'maskoutfile',      norm_t1w, 'image_file')
+        
+    wmhsppwf.connect(compute_mask_from_aseg     , 'out_file',         norm_t2w, 'mask_file')
+    wmhsppwf.connect(maskout_t2w                , 'maskoutfile',      norm_t2w, 'image_file')
+    
+    #step 16
+    wmhsppwf.connect(aseg_to_flair              , 'out_file',         inclusion_mask_from_aseg,'aseg_file')
+    
+               
     # outputs
-    wmhswf.connect(inputnode               , 'subject_ids',       datasink, 'container')
-    wmhswf.connect(inputnode               , 'outputdir',         datasink, 'base_directory')
-    
+    wmhsppwf.connect(inputnode               , 'subject_ids',       datasinkout, 'container')
+    wmhsppwf.connect(inputnode               , 'outputdir',         datasinkout, 'base_directory')
 
+
+    #step 17 if create training set
+    if cts:
+        wmhsppwf.connect(maskout_fl              , 'maskoutfile',       create_masterfile_tr, 'flair')
+        wmhsppwf.connect(maskout_t1w             , 'maskoutfile',       create_masterfile_tr, 't1w')
+        wmhsppwf.connect(maskout_t2w             , 'maskoutfile',       create_masterfile_tr, 't2w')
+        wmhsppwf.connect(c3d_affine              , 'fsl_transform',     create_masterfile_tr, 'fl2mni_matrix_file')
+        
+        wmhsppwf.connect(create_masterfile_tr    , 'master_file',       datasinkout, 'BIANCA.@masterfile')
+    else:
+        wmhsppwf.connect(maskout_fl              , 'maskoutfile',       create_masterfile_qr, 'flair')
+        wmhsppwf.connect(maskout_t1w             , 'maskoutfile',       create_masterfile_qr, 't1w')
+        wmhsppwf.connect(maskout_t2w             , 'maskoutfile',       create_masterfile_qr, 't2w')
+        wmhsppwf.connect(c3d_affine              , 'fsl_transform',     create_masterfile_qr, 'fl2mni_matrix_file')
+        
+        wmhsppwf.connect(c3d_affine              , 'fsl_transform',     datasinkout, 'BIANCA.@flair2mnimat')        
+        #bianca
+        wmhsppwf.connect(create_masterfile_qr    , 'master_file',        bianca,  'master_file')
+        wmhsppwf.connect(create_masterfile_qr    , 'master_file',        datasinkout,'BIANCA.@masterfile')
+        
+        wmhsppwf.connect(bianca                  , 'out_file',           datasinkout,'BIANCA.@biancasegfile')
+        
+        #outputs for deepmedic
+        wmhsppwf.connect(norm_fl                 , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilefl')
+        wmhsppwf.connect(norm_t1w                , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilet1w')
+        wmhsppwf.connect(norm_t2w                , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilet2w')
+        wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file',           datasinkout, 'NORM.@inclmask')
+        
+        
+           
     
-    
-    return wmhswf
+    return wmhsppwf
     
 
