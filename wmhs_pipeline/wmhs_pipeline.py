@@ -285,7 +285,7 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
     #step 14b maskout image T1warped
     maskout_t1w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
                                                           function=maskout_image), name='maskout_t1w')
-     #step 14c maskout image T2warped
+    #step 14c maskout image T2warped
     maskout_t2w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
                                                           function=maskout_image), name='maskout_t2w')
     
@@ -325,6 +325,12 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
         bianca.inputs.nonlespts=10000
         bianca.inputs.out_filename='bianca_wmhseg.nii.gz'
         bianca.inputs.loadclassifierdata=BIANCA_CLASSIFIER_DATA
+        
+        threshold_bianca_output=pe.Node(interface=util.Function(input_names=['biancasegfile'], output_names=['thresholded_file'],
+                                                        function=threshold_bianca), name='threshold_bianca_output')
+        
+        maskout_bianca_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
+                                                          function=maskout_image), name='maskout_bianca_output')
 
 
         
@@ -485,8 +491,21 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
         wmhsppwf.connect(create_masterfile_qr    , 'master_file',        bianca,  'master_file')
         wmhsppwf.connect(create_masterfile_qr    , 'master_file',        datasinkout,'BIANCA.@masterfile')
         
-        wmhsppwf.connect(bianca                  , 'out_file',           datasinkout,'BIANCA.@biancasegfile')
-        wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           datasinkout,'BIANCA.@brainmask')
+        wmhsppwf.connect(bianca                  , 'out_file',           threshold_bianca_output, 'biancasegfile')
+        wmhsppwf.connect(threshold_bianca_output , 'thresholded_file',   datasinkout, 'BIANCA.@threholded_file')
+        
+        wmhsppwf.connect(threshold_bianca_output , 'thresholded_file',   maskout_bianca_output, 'image_file')
+        wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file',           maskout_bianca_output, 'mask_file')
+        
+        wmhsppwf.connect(maskout_bianca_output   , 'maskoutfile',        datasinkout, 'BIANCA.@bianca_thresh_maskout')
+        
+        
+        wmhsppwf.connect(bianca                  , 'out_file',           datasinkout, 'BIANCA.@biancasegfile')
+        wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           datasinkout, '@brainmask')
+        
+        wmhsppwf.connect(n4biasfieldcorrect_hi_fl   , 'output_image',    datasinkout, '@flair')
+        wmhsppwf.connect(t1_to_flair_hi             , 'out_file',        datasinkout, '@t1w')
+        wmhsppwf.connect(t2_to_flair_hi             , 'out_file',        datasinkout, '@t2w')
         
         #outputs for deepmedic
         wmhsppwf.connect(norm_fl                 , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilefl')

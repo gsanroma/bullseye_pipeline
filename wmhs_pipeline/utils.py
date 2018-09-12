@@ -165,7 +165,29 @@ def create_master_file_query(flair, t1w,t2w, fl2mni_matrix_file):
     return os.path.abspath('masterfile.txt')
 
 
-
+def threshold_bianca(biancasegfile):
+    import numpy as np
+    import nibabel as nib
+    import os
+    
+    prlab_nib = nib.load(biancasegfile)
+    prlab = prlab_nib.get_data()
+    
+    # output mask
+    mask = np.zeros(prlab.shape, dtype=np.uint8)
+    mask[prlab > 0.95] = 1
+    
+    # save
+    mask_nib = nib.Nifti1Image(mask, prlab_nib.affine, prlab_nib.header)
+    mask_nib.set_data_dtype(np.uint8)
+    
+    fname,ext = os.path.splitext(os.path.basename(biancasegfile))
+    thresh_name = fname.replace('.nii','') + '_thr95.nii.gz'
+    thresholded_file = os.path.join(os.getcwd(),thresh_name)
+    nib.save(mask_nib, thresholded_file)
+    return thresholded_file
+    
+    
 class BiancaInputSpec(CommandLineInputSpec):
     """
     interface for bianca
