@@ -1,7 +1,8 @@
 from nipype.interfaces.fsl.base import CommandLine, CommandLineInputSpec
-from nipype.interfaces.base import (traits, TraitedSpec, File, isdefined)
+from nipype.interfaces.base import (traits, TraitedSpec, File, isdefined,InputMultiPath)
 from nipype.interfaces.ants.base import ANTSCommand, ANTSCommandInputSpec
 
+from glob import glob
 #from nipype.utils.filemanip import copyfile
 import os
 
@@ -149,6 +150,56 @@ def create_master_file_train(flair, t1w,t2w, fl2mni_matrix_file):
     
     return os.path.abspath('masterfile.txt')
 
+def create_deepmedic_channel_file(channel_name, channel_file_path):
+    """
+    create channel configuration file required by deepMedicRun
+    """
+    
+    import os
+    
+    if channel_name == 'NamesOfPredictions':
+        channel_file_path='pred_'
+        
+    channel_config_file = 'testChannel_'+channel_name+'.cfg'
+    with open(channel_config_file, 'w') as fid:
+        fid.write(channel_file_path+'\n')
+    
+    return os.path.abspath(channel_config_file)
+
+def create_deepmedic_config_file(flair_channel_file, t1_channel_file,
+                                 t2_channel_file,bianca_channel_file,
+                                 roi_channel_file,pred_channel_file):
+    
+    import os
+    import glob
+
+    from wmhs_pipeline.configoptions import DM_MODEL_DIR
+    
+    test_config_file = 'testConfig.cfg'
+    folder_for_output= os.getcwd()
+    model_file_path = glob.glob(DM_MODEL_DIR.rstrip()+'/*.save')
+    channels = '["'+ flair_channel_file + '","' +  t1_channel_file +'","' + t2_channel_file +'","' + bianca_channel_file + '"]'
+    
+    
+    with open(test_config_file, 'w') as fid:
+        fid.write('sessionName = "dm_cascading"'+'\n\n')
+        fid.write('folderForOutput = "'+ folder_for_output +'"\n\n')
+        fid.write('cnnModelFilePath = "'+ model_file_path[0] +'"\n\n')
+        fid.write('channels = '+ channels + '\n\n')
+        fid.write('namesForPredictionsPerCase = "'+ pred_channel_file +'"\n\n')
+        fid.write('roiMasks = "' + roi_channel_file +'"\n\n')
+        fid.write('saveSegmentation = True\n')
+        fid.write('saveProbMapsForEachClass = [True, True, True, True, True]\n')
+        fid.write('saveIndividualFms = False\n')
+        fid.write('saveAllFmsIn4DimImage = False\n')
+        fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfNormalPathway = []\n')
+        fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfSubsampledPathway = [[],[],[],[],[],[],[],[]]\n')
+        fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfFullyConnectedPathway = [[],[0,150],[]]\n')
+        fid.write('padInputImagesBool = True\n')
+        
+    return os.path.abspath(test_config_file)
+        
+    
 def create_master_file_query(flair, t1w,t2w, fl2mni_matrix_file):
     """
     create master file required by bianca
@@ -375,4 +426,44 @@ class C3DAffineTool(CommandLine):
         outputs=self.output_spec().get()
         outputs['fsl_transform'] = os.path.abspath(self.inputs.out_filename)
         return outputs
+
+
+
+class DeepMedicInputSpec(CommandLineInputSpec):
+    """
+    interface for DeepMedic
+    """
     
+    test_config_file = File(exists=True, desc='deepMedic test config file.', argstr='-test %s', position=0, mandatory=True)
+    device = traits.String(desc='device name', argstr='-dev %s', position=1, mandatory=True)
+    
+
+class DeepMedicOutputSpec(TraitedSpec):
+    
+    out_files = InputMultiPath(File(exists=True), desc='Output files from deepMedicRun' )
+
+
+class DeepMedic(CommandLine):
+    
+    _cmd='deepMedicRun'
+    input_spec = DeepMedicInputSpec
+    output_spec = DeepMedicOutputSpec
+    
+    def __init__(self, **inputs):
+        return super(DeepMedic, self).__init__(**inputs)
+    
+    def _run_interface(self, runtime):
+        
+        runtime = super(DeepMedic, self)._run_interface(runtime)        
+        
+        if runtime.stderr:
+            self.raise_exception(runtime)
+            
+        return runtime
+    
+    def _list_outputs(self):
+        outputs = self._outputs().get()
+        outputs['out_files'] = [os.path.abspath(f) for f in glob(os.getcwd()+'/predictions/*') if os.path.isfile(f)]
+        
+        return outputs
+        

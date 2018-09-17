@@ -331,9 +331,50 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
         
         maskout_bianca_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
                                                           function=maskout_image), name='maskout_bianca_output')
+    
+    
+    #%% step-18 DeepMedic run
+    
+    create_t1_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                        function=create_deepmedic_channel_file), name='create_t1_channel_config')
+    create_t1_channel_config.inputs.channel_name='t1'
+    
+
+    create_t2_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                        function=create_deepmedic_channel_file), name='create_t2_channel_config')
+    create_t2_channel_config.inputs.channel_name='t2'
+    
+
+    create_flair_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                        function=create_deepmedic_channel_file), name='create_flair_channel_config')
+    create_flair_channel_config.inputs.channel_name='flair'
+    
+
+    create_bianca_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                        function=create_deepmedic_channel_file), name='create_bianca_channel_config')
+    create_bianca_channel_config.inputs.channel_name='bianca'
+    
+
+    create_roi_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                        function=create_deepmedic_channel_file), name='create_roi_channel_config')
+    create_roi_channel_config.inputs.channel_name='roi'
+    
+
+    create_pred_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                        function=create_deepmedic_channel_file), name='create_pred_channel_config')
+    
+    create_pred_channel_config.inputs.channel_name='NamesOfPredictions'
+    
+    
+    create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 't1_channel_file','t2_channel_file','bianca_channel_file','roi_channel_file','pred_channel_file'],
+                                                         output_names=['test_config_file'],
+                                                        function=create_deepmedic_config_file), name='create_dm_test_config')
+    
+    
+    deepmedicrun = pe.Node(interface=DeepMedic(), name='deepmedicrun')
+    deepmedicrun.inputs.device='cuda'
 
 
-        
 
 
     #%% 18 collect outputs
@@ -508,10 +549,29 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
         wmhsppwf.connect(t2_to_flair_hi             , 'out_file',        datasinkout, '@t2w')
         
         #outputs for deepmedic
-        wmhsppwf.connect(norm_fl                 , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilefl')
-        wmhsppwf.connect(norm_t1w                , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilet1w')
-        wmhsppwf.connect(norm_t2w                , 'norm_outfile',       datasinkout, 'NORM.@norm_outfilet2w')
-        wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file',           datasinkout, 'NORM.@inclmask')
+        wmhsppwf.connect(norm_fl                 , 'norm_outfile',       create_flair_channel_config, 'channel_file_path')
+        wmhsppwf.connect(norm_t1w                , 'norm_outfile',       create_t1_channel_config, 'channel_file_path')
+        wmhsppwf.connect(norm_t2w                , 'norm_outfile',       create_t2_channel_config, 'channel_file_path')
+        wmhsppwf.connect(bianca                  , 'out_file',           create_bianca_channel_config, 'channel_file_path')
+        wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           create_roi_channel_config, 'channel_file_path')
+        
+        #just a dummy input to create_pred_channel_config node
+        wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           create_pred_channel_config, 'channel_file_path')
+        
+        
+        wmhsppwf.connect(create_flair_channel_config  , 'channel_config_file', create_dm_test_config, 'flair_channel_file')
+        wmhsppwf.connect(create_t1_channel_config     , 'channel_config_file', create_dm_test_config, 't1_channel_file')
+        wmhsppwf.connect(create_t2_channel_config     , 'channel_config_file', create_dm_test_config, 't2_channel_file')
+        wmhsppwf.connect(create_bianca_channel_config , 'channel_config_file', create_dm_test_config, 'bianca_channel_file')
+        wmhsppwf.connect(create_roi_channel_config    , 'channel_config_file', create_dm_test_config, 'roi_channel_file')
+        wmhsppwf.connect(create_pred_channel_config   , 'channel_config_file', create_dm_test_config, 'pred_channel_file')
+        
+        wmhsppwf.connect(create_dm_test_config        , 'test_config_file',    deepmedicrun, 'test_config_file')
+        
+        wmhsppwf.connect(deepmedicrun                 , 'out_files',           datasinkout,'deepmedic.@predictions')
+        
+        
+        wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file',                 datasinkout, 'NORM.@inclmask')
         
         
            

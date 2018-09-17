@@ -39,7 +39,7 @@ def main(**extra_args):
           maintainer = 'RheinlandStudy MRI/MRI-IT group, DZNE',
           maintainer_email = 'mohammad.shahid@dzne.de',
           package_data = {'wmhs_pipeline':
-		['WMHmaskbin/*.gz','WMHmaskbin/*.dat*']},
+		['WMHmaskbin/*.gz','WMHmaskbin/*.dat*','model/*.save']},
           install_requires=["nipype","nibabel"],
           **extra_args
          )
