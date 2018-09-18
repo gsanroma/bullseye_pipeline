@@ -373,6 +373,9 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
     
     deepmedicrun = pe.Node(interface=DeepMedic(), name='deepmedicrun')
     deepmedicrun.inputs.device='cuda'
+    
+    maskout_deepmedic_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
+                                                          function=maskout_image), name='maskout_deepmedic_output')
 
 
 
@@ -539,7 +542,7 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
         wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file',           maskout_bianca_output, 'mask_file')
         
         wmhsppwf.connect(maskout_bianca_output   , 'maskoutfile',        datasinkout, 'BIANCA.@bianca_thresh_maskout')
-        
+        wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file',           datasinkout, 'BIANCA.@inclmask')
         
         wmhsppwf.connect(bianca                  , 'out_file',           datasinkout, 'BIANCA.@biancasegfile')
         wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           datasinkout, '@brainmask')
@@ -568,10 +571,12 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
         
         wmhsppwf.connect(create_dm_test_config        , 'test_config_file',    deepmedicrun, 'test_config_file')
         
-        wmhsppwf.connect(deepmedicrun                 , 'out_files',           datasinkout,'deepmedic.@predictions')
+        wmhsppwf.connect(deepmedicrun                 , 'out_segmented_file',  maskout_deepmedic_output, 'image_file')
+        wmhsppwf.connect(inclusion_mask_from_aseg     , 'out_file',            maskout_deepmedic_output, 'mask_file')
         
-        
-        wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file',                 datasinkout, 'NORM.@inclmask')
+        wmhsppwf.connect(deepmedicrun                 , 'out_segmented_file',  datasinkout,'deepmedic.@predictions')
+        wmhsppwf.connect(maskout_deepmedic_output     , 'maskoutfile',         datasinkout,'deepmedic.@pred_maskout')        
+        wmhsppwf.connect(inclusion_mask_from_aseg     , 'out_file',            datasinkout,'deepmedic.@inclmask')
         
         
            

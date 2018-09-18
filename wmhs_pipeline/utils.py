@@ -2,7 +2,6 @@ from nipype.interfaces.fsl.base import CommandLine, CommandLineInputSpec
 from nipype.interfaces.base import (traits, TraitedSpec, File, isdefined,InputMultiPath)
 from nipype.interfaces.ants.base import ANTSCommand, ANTSCommandInputSpec
 
-from glob import glob
 #from nipype.utils.filemanip import copyfile
 import os
 
@@ -176,7 +175,8 @@ def create_deepmedic_config_file(flair_channel_file, t1_channel_file,
     from wmhs_pipeline.configoptions import DM_MODEL_DIR
     
     test_config_file = 'testConfig.cfg'
-    folder_for_output= os.getcwd()
+    #this workaround to set the output path to the deepmedic run folder
+    folder_for_output= os.path.join(os.path.abspath(os.path.join(os.getcwd(),os.pardir)), 'deepmedicrun')
     model_file_path = glob.glob(DM_MODEL_DIR.rstrip()+'/*.save')
     channels = '["'+ flair_channel_file + '","' +  t1_channel_file +'","' + t2_channel_file +'","' + bianca_channel_file + '"]'
     
@@ -440,7 +440,7 @@ class DeepMedicInputSpec(CommandLineInputSpec):
 
 class DeepMedicOutputSpec(TraitedSpec):
     
-    out_files = InputMultiPath(File(exists=True), desc='Output files from deepMedicRun' )
+    out_segmented_file = File(exists=True, desc='Output files from deepMedicRun' )
 
 
 class DeepMedic(CommandLine):
@@ -463,7 +463,7 @@ class DeepMedic(CommandLine):
     
     def _list_outputs(self):
         outputs = self._outputs().get()
-        outputs['out_files'] = [os.path.abspath(f) for f in glob(os.getcwd()+'/predictions/*') if os.path.isfile(f)]
+        outputs['out_segmented_file'] = os.path.abspath(os.getcwd()+'/predictions/dm_cascading/predictions/pred__Segm.nii.gz')
         
         return outputs
         
