@@ -53,6 +53,10 @@ def main():
     
     parser.add_argument('-p', '--processes', help='overall number of parallel processes', \
                         default=1, type=int)
+    parser.add_argument('-g', '--ngpus', help='number of gpus to use (emb-) parallel', \
+                        default=1, type=int)
+    parser.add_argument('-gp', '--ngpuproc', help='number of processes per gpu', \
+                        default=1, type=int)
     
     parser.add_argument('-t', '--threads', help='ITK threads', default=1,\
                         type=int)
@@ -115,7 +119,7 @@ def main():
      
     wmhs_pipeline.run(
                             plugin='MultiProc', 
-                            plugin_args={'n_procs' : args.processes}
+                            plugin_args={'n_procs' : args.processes,'n_gpus': args.ngpus, 'ngpuproc': args.ngpuproc}
                            )
     
 

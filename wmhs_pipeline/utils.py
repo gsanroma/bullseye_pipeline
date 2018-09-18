@@ -436,7 +436,7 @@ class DeepMedicInputSpec(CommandLineInputSpec):
     
     test_config_file = File(exists=True, desc='deepMedic test config file.', argstr='-test %s', position=0, mandatory=True)
     device = traits.String(desc='device name', argstr='-dev %s', position=1, mandatory=True)
-    
+    use_gpu = traits.Bool(desc='set  the flag to use gpu')
 
 class DeepMedicOutputSpec(TraitedSpec):
     
