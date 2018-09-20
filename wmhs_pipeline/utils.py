@@ -170,21 +170,20 @@ def create_deepmedic_config_file(flair_channel_file, t1_channel_file,
                                  roi_channel_file,pred_channel_file):
     
     import os
-    import glob
 
     from wmhs_pipeline.configoptions import DM_MODEL_DIR
     
     test_config_file = 'testConfig.cfg'
     #this workaround to set the output path to the deepmedic run folder
     folder_for_output= os.path.join(os.path.abspath(os.path.join(os.getcwd(),os.pardir)), 'deepmedicrun')
-    model_file_path = glob.glob(DM_MODEL_DIR.rstrip()+'/*.save')
+    model_file_path = os.path.join(DM_MODEL_DIR, 'deepmedic_model_cascading_v1.save')
     channels = '["'+ flair_channel_file + '","' +  t1_channel_file +'","' + t2_channel_file +'","' + bianca_channel_file + '"]'
     
     
     with open(test_config_file, 'w') as fid:
         fid.write('sessionName = "dm_cascading"'+'\n\n')
         fid.write('folderForOutput = "'+ folder_for_output +'"\n\n')
-        fid.write('cnnModelFilePath = "'+ model_file_path[0] +'"\n\n')
+        fid.write('cnnModelFilePath = "'+ model_file_path +'"\n\n')
         fid.write('channels = '+ channels + '\n\n')
         fid.write('namesForPredictionsPerCase = "'+ pred_channel_file +'"\n\n')
         fid.write('roiMasks = "' + roi_channel_file +'"\n\n')
