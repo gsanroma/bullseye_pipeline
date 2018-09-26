@@ -9,8 +9,8 @@ import os, sys,glob
 import argparse
 from itertools import chain
 
-def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, cts=False,  wfname='wmhs_preproc'):
-    wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,cts, wfname)
+def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, device, cts=False,  wfname='wmhs_preproc'):
+    wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,device, cts, wfname)
     wf.inputs.inputnode.subject_ids = subject_ids
     return wf
     
@@ -57,6 +57,8 @@ def main():
                         default=1, type=int)
     parser.add_argument('-gp', '--ngpuproc', help='number of processes per gpu', \
                         default=1, type=int)
+    parser.add_argument('-d', '--device', help='deepmedic -dev flag', \
+                        default='cuda', type=str)
     
     parser.add_argument('-t', '--threads', help='ITK threads', default=1,\
                         type=int)
@@ -94,8 +96,8 @@ def main():
     
     config.update_config({
         'logging': {'log_directory': args.workdir, 'log_to_file': True},
-        'execution': {'job_finished_timeout' : 65,
-                      'poll_sleep_duration' : 30,
+        'execution': {'job_finished_timeout' : 60,
+                      'poll_sleep_duration' : 20,
                       'hash_method' : 'content',
                       'local_hash_check' : False,
                       'stop_on_first_crash':False,
@@ -109,7 +111,7 @@ def main():
     
 
     wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
-                                   args.threads,cts=create_training_set,  wfname='wmhs_preproc')
+                                   args.threads,args.device, cts=create_training_set,  wfname='wmhs_preproc')
         
     # Visualize workflow
     if args.debug:

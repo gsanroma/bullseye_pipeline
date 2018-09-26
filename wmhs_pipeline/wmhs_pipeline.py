@@ -21,7 +21,7 @@ from .configoptions import BIANCA_CLASSIFIER_DATA
 
 
 
-def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=False,  name='wmhs_preproc'):
+def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, cts=False,  name='wmhs_preproc'):
     wmhsppwf = pe.Workflow(name=name)
     wmhsppwf.base_dir = work_dir
 
@@ -372,8 +372,11 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, cts=
     
     
     deepmedicrun = pe.Node(interface=DeepMedic(), name='deepmedicrun')
-    deepmedicrun.inputs.device='cuda'
-    deepmedicrun.inputs.use_gpu = True
+    deepmedicrun.inputs.device=device
+    if device=='cuda':
+        deepmedicrun.inputs.use_gpu = True
+    else:
+        deepmedicrun.inputs.use_gpu = False
     
     maskout_deepmedic_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
                                                           function=maskout_image), name='maskout_deepmedic_output')
