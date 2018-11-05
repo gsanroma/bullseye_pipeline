@@ -18,7 +18,8 @@ from nipype import IdentityInterface, DataSink
 from .utils import *
 
 from .configoptions import BIANCA_CLASSIFIER_DATA
-
+from .configoptions import DM_MODEL_DIR
+import os
 
 
 def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, cts=False,  name='wmhs_preproc'):
@@ -350,9 +351,9 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     create_flair_channel_config.inputs.channel_name='flair'
     
 
-    create_bianca_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
-                                                        function=create_deepmedic_channel_file), name='create_bianca_channel_config')
-    create_bianca_channel_config.inputs.channel_name='bianca'
+    #create_bianca_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+    #                                                    function=create_deepmedic_channel_file), name='create_bianca_channel_config')
+    #create_bianca_channel_config.inputs.channel_name='bianca'
     
 
     create_roi_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
@@ -366,13 +367,15 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     create_pred_channel_config.inputs.channel_name='NamesOfPredictions'
     
     
-    create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 't1_channel_file','t2_channel_file','bianca_channel_file','roi_channel_file','pred_channel_file'],
+    create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 't1_channel_file','t2_channel_file','roi_channel_file','pred_channel_file'],
                                                          output_names=['test_config_file'],
                                                         function=create_deepmedic_config_file), name='create_dm_test_config')
     
     
     deepmedicrun = pe.Node(interface=DeepMedic(), name='deepmedicrun')
     deepmedicrun.inputs.device=device
+    deepmedicrun.inputs.model_config_file = os.path.join(DM_MODEL_DIR, 'modelConfig_3ch_tf.cfg') 
+    deepmedicrun.inputs.load_saved_model =  os.path.join(DM_MODEL_DIR, 'generic_model_3ch_tf.all_onlydm_shahid_tf.final.2018-10-26.02.52.04.107352.model.ckpt.index')
     if device=='cuda':
         deepmedicrun.inputs.use_gpu = True
     else:
@@ -559,7 +562,7 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
         wmhsppwf.connect(norm_fl                 , 'norm_outfile',       create_flair_channel_config, 'channel_file_path')
         wmhsppwf.connect(norm_t1w                , 'norm_outfile',       create_t1_channel_config, 'channel_file_path')
         wmhsppwf.connect(norm_t2w                , 'norm_outfile',       create_t2_channel_config, 'channel_file_path')
-        wmhsppwf.connect(bianca                  , 'out_file',           create_bianca_channel_config, 'channel_file_path')
+        #wmhsppwf.connect(bianca                  , 'out_file',           create_bianca_channel_config, 'channel_file_path')
         wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           create_roi_channel_config, 'channel_file_path')
         
         #just a dummy input to create_pred_channel_config node
@@ -569,7 +572,7 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
         wmhsppwf.connect(create_flair_channel_config  , 'channel_config_file', create_dm_test_config, 'flair_channel_file')
         wmhsppwf.connect(create_t1_channel_config     , 'channel_config_file', create_dm_test_config, 't1_channel_file')
         wmhsppwf.connect(create_t2_channel_config     , 'channel_config_file', create_dm_test_config, 't2_channel_file')
-        wmhsppwf.connect(create_bianca_channel_config , 'channel_config_file', create_dm_test_config, 'bianca_channel_file')
+        #wmhsppwf.connect(create_bianca_channel_config , 'channel_config_file', create_dm_test_config, 'bianca_channel_file')
         wmhsppwf.connect(create_roi_channel_config    , 'channel_config_file', create_dm_test_config, 'roi_channel_file')
         wmhsppwf.connect(create_pred_channel_config   , 'channel_config_file', create_dm_test_config, 'pred_channel_file')
         

@@ -166,7 +166,7 @@ def create_deepmedic_channel_file(channel_name, channel_file_path):
     return os.path.abspath(channel_config_file)
 
 def create_deepmedic_config_file(flair_channel_file, t1_channel_file,
-                                 t2_channel_file,bianca_channel_file,
+                                 t2_channel_file,
                                  roi_channel_file,pred_channel_file):
     
     import os
@@ -176,8 +176,8 @@ def create_deepmedic_config_file(flair_channel_file, t1_channel_file,
     test_config_file = 'testConfig.cfg'
     #this workaround to set the output path to the deepmedic run folder
     folder_for_output= os.path.join(os.path.abspath(os.path.join(os.getcwd(),os.pardir)), 'deepmedicrun')
-    model_file_path = os.path.join(DM_MODEL_DIR, 'deepmedic_model_cascading_v1.save')
-    channels = '["'+ flair_channel_file + '","' +  t1_channel_file +'","' + t2_channel_file +'","' + bianca_channel_file + '"]'
+    model_file_path = os.path.join(DM_MODEL_DIR, 'generic_model_3ch_tf.all_onlydm_shahid_tf.final.2018-10-26.02.52.04.107352.model.ckpt')
+    channels = '["'+ flair_channel_file + '","' +  t1_channel_file +'","' + t2_channel_file +'"]'
     
     
     with open(test_config_file, 'w') as fid:
@@ -432,9 +432,10 @@ class DeepMedicInputSpec(CommandLineInputSpec):
     """
     interface for DeepMedic
     """
-    
-    test_config_file = File(exists=True, desc='deepMedic test config file.', argstr='-test %s', position=0, mandatory=True)
-    device = traits.String(desc='device name', argstr='-dev %s', position=1, mandatory=True)
+    model_config_file = File(exists=True, desc='deepMedic model config file.', argstr='-model %s', position=0, mandatory=True) 
+    test_config_file  = File(exists=True, desc='deepMedic test config file.',   argstr='-test %s',  position=1, mandatory=True)
+    load_saved_model  = File(exists=True, desc='deepMedic saved model file.',   argstr='-load %s',  position=2, mandatory=True)
+    device            = traits.String(desc='device name', argstr='-dev %s', position=3, mandatory=True)
     use_gpu = traits.Bool(desc='set  the flag to use gpu')
 
 class DeepMedicOutputSpec(TraitedSpec):
@@ -450,6 +451,16 @@ class DeepMedic(CommandLine):
     
     def __init__(self, **inputs):
         return super(DeepMedic, self).__init__(**inputs)
+
+    def _format_arg(self, name, spec, value):
+        if(name=='load_saved_model'):
+             #remove the .index extension here, the file will be existing file
+             return spec.argstr %( self.inputs.load_saved_model.replace('.index', ''))
+
+
+        return super(DeepMedic,
+                     self)._format_arg(name, spec, value)
+
     
     def _run_interface(self, runtime):
         
