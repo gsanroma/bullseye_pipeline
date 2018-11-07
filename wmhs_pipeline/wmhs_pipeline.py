@@ -377,9 +377,8 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     deepmedicrun.inputs.model_config_file = os.path.join(DM_MODEL_DIR, 'modelConfig_3ch_tf.cfg') 
     deepmedicrun.inputs.load_saved_model =  os.path.join(DM_MODEL_DIR, 'generic_model_3ch_tf.all_onlydm_shahid_tf.final.2018-10-26.02.52.04.107352.model.ckpt.index')
     if device=='cuda':
+	#this will set the use_gpu attribute for the nodes input
         deepmedicrun.inputs.use_gpu = True
-    else:
-        deepmedicrun.inputs.use_gpu = False
     
     maskout_deepmedic_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
                                                           function=maskout_image), name='maskout_deepmedic_output')
