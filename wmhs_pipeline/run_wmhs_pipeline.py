@@ -1,13 +1,18 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-from .wmhs_pipeline import wmhs_pipeline
+
+# from .wmhs_pipeline import wmhs_pipeline
+# import sys,os
+# sys.path.insert(0, os.path.join(os.environ['HOME'], 'tmp', 'pycharm_deploy_base', 'rs_wmhs_pipeline'))
+from wmhs_pipeline import wmhs_pipeline
 
 from nipype import config, logging
 
 import os, sys,glob
 import argparse
 from itertools import chain
+
 
 def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, device, cts=False,  wfname='wmhs_preproc'):
     wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,device, cts, wfname)
@@ -66,7 +71,12 @@ def main():
     parser.add_argument('-n', '--name', help='Pipeline workflow name', 
                         default='wmhs_pipeline')
     
-    args = parser.parse_args()
+    args = parser.parse_args('-s /home/sanromag/DATA/WMH/preproc/scans '
+                             '-w /home/sanromag/DATA/WMH/preproc/work '
+                             '-o /home/sanromag/DATA/WMH/preproc/out '
+                             '--subjects fff5fd4e-94dc-4f66-9ac7-950b5c4e28b5 '
+                             '-d cpu '.split())
+    # args = parser.parse_args()
     
     create_training_set = args.create_training_set
     
@@ -110,20 +120,20 @@ def main():
     logging.update_logging(config)
     
 
-    wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
-                                   args.threads,args.device, cts=create_training_set,  wfname='wmhs_preproc')
-        
-    # Visualize workflow
-    if args.debug:
-        wmhs_pipeline.write_graph(graph2use='colored', simple_form=True)
+    # wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
+    #                                args.threads,args.device, cts=create_training_set,  wfname='wmhs_preproc')
+    #
+    # # Visualize workflow
+    # if args.debug:
+    #     wmhs_pipeline.write_graph(graph2use='colored', simple_form=True)
+    #
+    #
+    #
+    # wmhs_pipeline.run(
+    #                         plugin='MultiProc',
+    #                         plugin_args={'n_procs' : args.processes,'n_gpus': args.ngpus, 'ngpuproc': args.ngpuproc}
+    #                        )
 
-    
-     
-    wmhs_pipeline.run(
-                            plugin='MultiProc', 
-                            plugin_args={'n_procs' : args.processes,'n_gpus': args.ngpus, 'ngpuproc': args.ngpuproc}
-                           )
-    
 
     print('Done WMHS pipeline!!!')
 
