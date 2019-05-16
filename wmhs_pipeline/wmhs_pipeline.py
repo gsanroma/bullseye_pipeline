@@ -15,10 +15,13 @@ from nipype.interfaces.ants import Registration
 
 from nipype import IdentityInterface, DataSink
 
-from .utils import *
+#from .utils import *
+from utils import *
 
-from .configoptions import BIANCA_CLASSIFIER_DATA
-from .configoptions import DM_MODEL_DIR
+#from .configoptions import BIANCA_CLASSIFIER_DATA
+#from .configoptions import DM_MODEL_DIR
+from configoptions import BIANCA_CLASSIFIER_DATA
+from configoptions import DM_MODEL_DIR
 import os
 
 
