@@ -12,9 +12,4 @@ from os.path import realpath, join, abspath, dirname
 # defaults
 SCRIPT_PATH = dirname(realpath(__file__))
 
-WMHS_MASKS_DIR = abspath(join(SCRIPT_PATH, 'WMHmaskbin'))
-
 DM_MODEL_DIR = abspath(join(SCRIPT_PATH, 'model'))
-
-BIANCA_CLASSIFIER_DATA=abspath(join(SCRIPT_PATH, 'WMHmaskbin', 'classif17manual_labels.dat'))
-BIANCA_CLASSIFIER_LABELS=abspath(join(SCRIPT_PATH, 'WMHmaskbin', 'classif17manual_labels.dat_labels'))

@@ -13,6 +13,23 @@ import os, sys,glob
 import argparse
 from itertools import chain
 
+def setenviron():
+
+    import subprocess
+
+    os.environ['PATH'] = '/groups/mri-rhinelandstudy/software/bin:' + os.environ['PATH']
+    # os.environ['LD_LIBRARY_PATH'] = '/groups/mri-rhinelandstudy/software/curl/lib:' + os.environ['LD_LIBRARY_PATH']
+    # os.environ[''] = ''
+    os.environ['ANTSPATH'] = '/groups/mri-rhinelandstudy/software/ants2.3'
+    os.environ['PATH'] = os.path.join(os.environ['ANTSPATH'], 'bin') + ':' + os.environ['PATH']
+    os.environ['FSLDIR'] = '/groups/mri-rhinelandstudy/software/fsl/fsl6.0.0'
+    os.environ['PATH'] = os.path.join(os.environ['FSLDIR'], 'bin') + ':' + os.environ['PATH']
+    # subprocess.call(os.path.join(os.environ['FSLDIR'], 'etc', 'fslconf', 'fsl.sh'))
+    os.environ['FREESURFER_HOME'] = '/groups/mri-rhinelandstudy/software/freesurfer/freesurfer6.0.0'
+    os.environ['PATH'] = os.path.join(os.environ['FREESURFER_HOME'], 'bin') + ':' + os.environ['PATH']
+    # subprocess.call(os.path.join(os.environ['FREESURFER_HOME'], 'SetUpFreeSurfer.sh'))
+    os.environ['PATH'] = '/groups/mri-rhinelandstudy/software/c3d-1.1.0-Linux-gcc64/bin:' + os.environ['PATH']
+    os.environ['PATH'] = os.path.join(os.environ['HOME'], 'CODE', 'external', 'deepmedic') + ':' + os.environ['PATH']
 
 def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, device, cts=False,  wfname='wmhs_preproc'):
     wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,device, cts, wfname)
@@ -63,7 +80,7 @@ def main():
     parser.add_argument('-gp', '--ngpuproc', help='number of processes per gpu', \
                         default=1, type=int)
     parser.add_argument('-d', '--device', help='deepmedic -dev flag', \
-                        default='cuda', type=str)
+                        default='cpu', type=str)
     
     parser.add_argument('-t', '--threads', help='ITK threads', default=1,\
                         type=int)
@@ -120,23 +137,24 @@ def main():
     logging.update_logging(config)
     
 
-    # wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
-    #                                args.threads,args.device, cts=create_training_set,  wfname='wmhs_preproc')
-    #
-    # # Visualize workflow
-    # if args.debug:
-    #     wmhs_pipeline.write_graph(graph2use='colored', simple_form=True)
-    #
-    #
-    #
-    # wmhs_pipeline.run(
-    #                         plugin='MultiProc',
-    #                         plugin_args={'n_procs' : args.processes,'n_gpus': args.ngpus, 'ngpuproc': args.ngpuproc}
-    #                        )
+    wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
+                                   args.threads,args.device, cts=create_training_set,  wfname='wmhs_preproc')
+
+    # Visualize workflow
+    if args.debug:
+        wmhs_pipeline.write_graph(graph2use='colored', simple_form=True)
+
+
+
+    wmhs_pipeline.run(
+                            plugin='MultiProc',
+                            plugin_args={'n_procs' : args.processes,'n_gpus': args.ngpus, 'ngpuproc': args.ngpuproc}
+                           )
 
 
     print('Done WMHS pipeline!!!')
 
     
 if __name__ == '__main__':
+    setenviron()
     sys.exit(main())

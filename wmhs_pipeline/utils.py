@@ -122,33 +122,6 @@ def inclusion_mask(aseg_file):
 
     
     
-def create_master_file_train(flair, t1w,t2w, fl2mni_matrix_file):
-    """
-    create master file required by bianca
-    """
-    
-    import os
-    import glob
-    
-    from wmhs_pipeline.configoptions import WMHS_MASKS_DIR
-
-    masterfile=""
-    
-    WMHmaskbin_file_list = glob.glob(WMHS_MASKS_DIR.rstrip()+'/*WMHmaskbin.nii.gz')
-
-    for fname in WMHmaskbin_file_list:
-        fbname=os.path.basename(fname)
-        sid=fbname.split('_')[0]
-        if sid in flair:
-                masterfile = flair + ' ' + t1w + ' ' + t2w + ' ' + fname +  ' ' + fl2mni_matrix_file
-                break
-    
-    with open('masterfile.txt', 'w') as fid:
-        fid.write(masterfile+'\n')
-        
-    
-    return os.path.abspath('masterfile.txt')
-
 def create_deepmedic_channel_file(channel_name, channel_file_path):
     """
     create channel configuration file required by deepMedicRun
@@ -157,7 +130,7 @@ def create_deepmedic_channel_file(channel_name, channel_file_path):
     import os
     
     if channel_name == 'NamesOfPredictions':
-        channel_file_path='pred_'
+        channel_file_path='pred'
         
     channel_config_file = 'testChannel_'+channel_name+'.cfg'
     with open(channel_config_file, 'w') as fid:
@@ -165,268 +138,40 @@ def create_deepmedic_channel_file(channel_name, channel_file_path):
     
     return os.path.abspath(channel_config_file)
 
-def create_deepmedic_config_file(flair_channel_file, t1_channel_file,
-                                 t2_channel_file,
-                                 roi_channel_file,pred_channel_file):
+def create_deepmedic_config_file(flair_channel_file, roi_channel_file,pred_channel_file):
     
     import os
 
-    from wmhs_pipeline.configoptions import DM_MODEL_DIR
-    
+    # from wmhs_pipeline.configoptions import DM_MODEL_DIR
+    from configoptions import DM_MODEL_DIR
+
     test_config_file = 'testConfig.cfg'
     #this workaround to set the output path to the deepmedic run folder
     folder_for_output= os.path.join(os.path.abspath(os.path.join(os.getcwd(),os.pardir)), 'deepmedicrun')
-    model_file_path = os.path.join(DM_MODEL_DIR, 'generic_model_3ch_tf.all_onlydm_shahid_tf.final.2018-10-26.02.52.04.107352.model.ckpt')
-    channels = '["'+ flair_channel_file + '","' +  t1_channel_file +'","' + t2_channel_file +'"]'
+    model_file_path = os.path.join(DM_MODEL_DIR, 'best_mod_1ch.ckpt')
+    channels = '["'+ flair_channel_file + '"]'
     
     
     with open(test_config_file, 'w') as fid:
-        fid.write('sessionName = "dm_cascading"'+'\n\n')
+        fid.write('sessionName = "deepmed_v1"'+'\n\n')
         fid.write('folderForOutput = "'+ folder_for_output +'"\n\n')
         fid.write('cnnModelFilePath = "'+ model_file_path +'"\n\n')
         fid.write('channels = '+ channels + '\n\n')
         fid.write('namesForPredictionsPerCase = "'+ pred_channel_file +'"\n\n')
         fid.write('roiMasks = "' + roi_channel_file +'"\n\n')
+        fid.write('batchsize = 10\n\n')
         fid.write('saveSegmentation = True\n')
-        fid.write('saveProbMapsForEachClass = [True, True, True, True, True]\n')
+        fid.write('saveProbMapsForEachClass = [False, False]\n')
         fid.write('saveIndividualFms = False\n')
         fid.write('saveAllFmsIn4DimImage = False\n')
-        fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfNormalPathway = []\n')
-        fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfSubsampledPathway = [[],[],[],[],[],[],[],[]]\n')
-        fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfFullyConnectedPathway = [[],[0,150],[]]\n')
+        # fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfNormalPathway = []\n')
+        # fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfSubsampledPathway = [[],[],[],[],[],[],[],[]]\n')
+        # fid.write('minMaxIndicesOfFmsToSaveFromEachLayerOfFullyConnectedPathway = [[],[0,150],[]]\n')
         fid.write('padInputImagesBool = True\n')
         
     return os.path.abspath(test_config_file)
         
     
-def create_master_file_query(flair, t1w,t2w, fl2mni_matrix_file):
-    """
-    create master file required by bianca
-    """
-    
-    import os
-    
-    masterfile = flair + ' ' + t1w + ' ' + t2w + ' '  + 'NOLABEL' +  ' ' + fl2mni_matrix_file
-    
-    with open('masterfile.txt', 'w') as fid:
-        fid.write(masterfile+'\n')
-        
-    
-    return os.path.abspath('masterfile.txt')
-
-
-def threshold_bianca(biancasegfile):
-    import numpy as np
-    import nibabel as nib
-    import os
-    
-    prlab_nib = nib.load(biancasegfile)
-    prlab = prlab_nib.get_data()
-    
-    # output mask
-    mask = np.zeros(prlab.shape, dtype=np.uint8)
-    mask[prlab > 0.95] = 1
-    
-    # save
-    mask_nib = nib.Nifti1Image(mask, prlab_nib.affine, prlab_nib.header)
-    mask_nib.set_data_dtype(np.uint8)
-    
-    fname,ext = os.path.splitext(os.path.basename(biancasegfile))
-    thresh_name = fname.replace('.nii','') + '_thr95.nii.gz'
-    thresholded_file = os.path.join(os.getcwd(),thresh_name)
-    nib.save(mask_nib, thresholded_file)
-    return thresholded_file
-    
-    
-class BiancaInputSpec(CommandLineInputSpec):
-    """
-    interface for bianca
-    """
-    
-    master_file = File(exists=True, desc='bianca master file.', argstr='--singlefile=%s', position=0, mandatory=True)
-    querysubjectnum = traits.Int(desc='row no of qury subject', argstr='--querysubjectnum=%d', position=1, mandatory=True)
-    brainmaskfeaturenum = traits.Int(desc='col no of file used as brainmask', argstr='--brainmaskfeaturenum=%d', position=2, mandatory=True)
-    featuresubset = traits.String(desc='comma separated set of col nos used as features', argstr='--featuresubset=%s', position=3, mandatory=True)
-    matfeaturenum = traits.Int(desc='feature no of xfm matrix', argstr='--matfeaturenum=%d', position=4, mandatory=True)
-    spatialweight = traits.Float(desc='spatial weight', argstr='--spatialweight=%.2f', position=5, mandatory=True)
-    selectpts = traits.Enum('noborder', 'any', 'surround', argstr='--selectpts=%s', desc='select points option', position=6, usedefault=True)
-    trainingpts = traits.Int(desc='training points', argstr='--trainingpts=%d', position=7, mandatory=True)
-    nonlespts = traits.Int(desc='no of lesion points', argstr='--nonlespts=%d', position=8, mandatory=True)
-    out_filename = traits.String(desc='output file name', argstr='-o %s', default='bianca_wmhseg.nii.gz', position=9, mandatory=True)
-    loadclassifierdata = traits.String(desc='classifier data name', argstr='--loadclassifierdata=%s', position=10, mandatory=True)
-
-
-class BiancaOutputSpec(TraitedSpec):
-    
-    out_file = File(exists=True, desc='bianca output WMH segmented file')
-
-
-class Bianca(CommandLine):
-    
-    _cmd='bianca'
-    input_spec = BiancaInputSpec
-    output_spec = BiancaOutputSpec
-    
-    def __init__(self, **inputs):
-        return super(Bianca, self).__init__(**inputs)
-    
-    def _run_interface(self, runtime):
-        
-        runtime = super(Bianca, self)._run_interface(runtime)        
-        
-        if runtime.stderr:
-            self.raise_exception(runtime)
-            
-        return runtime
-    
-    def _list_outputs(self):
-        outputs = self.output_spec().get()
-        outputs['out_file'] = os.path.abspath(os.path.basename(self.inputs.out_filename))
-        
-        return outputs
-
-
-
-class DenoiseImageWithMaskInputSpec(ANTSCommandInputSpec):
-    dimension = traits.Enum(2, 3, 4, argstr='-d %d', usedefault=False,
-                            desc='This option forces the image to be treated '
-                                 'as a specified-dimensional image. If not '
-                                 'specified, the program tries to infer the '
-                                 'dimensionality from the input image.')
-    input_image = File(exists=True, argstr="-i %s", mandatory=True,
-                       desc='A scalar image is expected as input for noise correction.')
-    mask_image = File(exists=True, argstr="-x %s", mandatory=True,
-                       desc='A mask to perform denoise within.')
-    
-    noise_model = traits.Enum('Gaussian', 'Rician', argstr='-n %s', usedefault=True,
-                              desc=('Employ a Rician or Gaussian noise model.'))
-    shrink_factor = traits.Int(default_value=1, usedefault=True, argstr='-s %s',
-                               desc=('Running noise correction on large images can '
-                                     'be time consuming. To lessen computation time, '
-                                     'the input image can be resampled. The shrink '
-                                     'factor, specified as a single integer, describes '
-                                     'this resampling. Shrink factor = 1 is the default.'))
-    output_image = File(argstr="-o %s", name_source=['input_image'], hash_files=False,
-                        keep_extension=True, name_template='%s_noise_corrected',
-                        desc='The output consists of the noise corrected '
-                             'version of the input image.')
-    save_noise = traits.Bool(False, mandatory=True, usedefault=True,
-                             desc=('True if the estimated noise should be saved '
-                                   'to file.'), xor=['noise_image'])
-    noise_image = File(name_source=['input_image'], hash_files=False,
-                       keep_extension=True, name_template='%s_noise',
-                       desc='Filename for the estimated noise.')
-    verbose = traits.Bool(False, argstr="-v", desc=('Verbose output.'))
-
-
-class DenoiseImageWithMaskOutputSpec(TraitedSpec):
-    output_image = File(exists=True)
-    noise_image = File()
-
-
-class DenoiseImageWithMask(ANTSCommand):
-    """
-    Examples
-    --------
-    >>> import copy
-    >>> from nipype.interfaces.ants import DenoiseImage
-    >>> denoise = DenoiseImage()
-    >>> denoise.inputs.dimension = 3
-    >>> denoise.inputs.input_image = 'im1.nii'
-    >>> denoise.cmdline # doctest: +ALLOW_UNICODE
-    'DenoiseImage -d 3 -i im1.nii -n Gaussian -o im1_noise_corrected.nii -s 1'
-
-    >>> denoise_2 = copy.deepcopy(denoise)
-    >>> denoise_2.inputs.output_image = 'output_corrected_image.nii.gz'
-    >>> denoise_2.inputs.noise_model = 'Rician'
-    >>> denoise_2.inputs.shrink_factor = 2
-    >>> denoise_2.cmdline # doctest: +ALLOW_UNICODE
-    'DenoiseImage -d 3 -i im1.nii -n Rician -o output_corrected_image.nii.gz -s 2'
-
-    >>> denoise_3 = DenoiseImage()
-    >>> denoise_3.inputs.input_image = 'im1.nii'
-    >>> denoise_3.inputs.save_noise = True
-    >>> denoise_3.cmdline # doctest: +ALLOW_UNICODE
-    'DenoiseImage -i im1.nii -n Gaussian -o [ im1_noise_corrected.nii, im1_noise.nii ] -s 1'
-    """
-    input_spec = DenoiseImageWithMaskInputSpec
-    output_spec = DenoiseImageWithMaskOutputSpec
-    _cmd = 'DenoiseImage'
-
-    def _format_arg(self, name, trait_spec, value):
-        if ((name == 'output_image') and
-                (self.inputs.save_noise or isdefined(self.inputs.noise_image))):
-            newval = '[ %s, %s ]' % (self._filename_from_source('output_image'),
-                                     self._filename_from_source('noise_image'))
-            return trait_spec.argstr % newval
-
-        return super(DenoiseImageWithMask,
-                     self)._format_arg(name, trait_spec, value)
-
-
-
-class ConvertTransformFileInputSpec(ANTSCommandInputSpec):
-    dimension = traits.Enum(2, 3, 4, argstr='%d', usedefault=False,
-                            desc='This option forces the image to be treated '
-                                 'as a specified-dimensional image. If not '
-                                 'specified, the program tries to infer the '
-                                 'dimensionality from the input image.', position=0)
-    in_file = File(exists=True, argstr='%s', mandatory=True,
-                       desc='input transform .mat file.', position=1)
-    out_filename = File(argstr='%s', position=2,desc='name of output file')
-    
-
-
-class ConvertTransformFileOutputSpec(TraitedSpec):
-    out_file = File(exists=True, desc="output transform .txt file")
-    
-
-
-class ConvertTransformFile(ANTSCommand):
-
-    input_spec = ConvertTransformFileInputSpec
-    output_spec = ConvertTransformFileOutputSpec
-    _cmd = 'ConvertTransformFile'
-
-    def _format_arg(self, name, trait_spec, value):
-        if(name=='in_file'):
-             fname,ext=os.path.splitext(os.path.basename(self.inputs.in_file))
-             self.inputs.out_filename = os.path.join(os.getcwd(),fname+'.txt')
-             
-        
-        return super(ConvertTransformFile,
-                     self)._format_arg(name, trait_spec, value)
-    
-    def _list_outputs(self):
-        outputs = self.output_spec().get()
-        outputs['out_file'] = os.path.abspath(self.inputs.out_filename)
-        return outputs
-        
-
-class C3DAffineToolInputSpec(CommandLineInputSpec):
-    reference_file = File(exists=True, argstr="-ref %s", position=1)
-    source_file = File(exists=True, argstr='-src %s', position=2)
-    transform_file = File(exists=True, argstr='-itk %s', position=3)
-    ras2fsl = traits.Bool(argstr='-ras2fsl', position=4)
-    out_filename = File(argstr='-o %s', position=5)
-
-
-class C3DAffineToolOutputSpec(TraitedSpec):
-    fsl_transform = File(exists=True)
-
-
-class C3DAffineTool(CommandLine):
-    input_spec = C3DAffineToolInputSpec
-    output_spec = C3DAffineToolOutputSpec
-    
-    _cmd = 'c3d_affine_tool'
-    
-    def _list_outputs(self):
-        outputs=self.output_spec().get()
-        outputs['fsl_transform'] = os.path.abspath(self.inputs.out_filename)
-        return outputs
-
-
 
 class DeepMedicInputSpec(CommandLineInputSpec):
     """
@@ -434,7 +179,7 @@ class DeepMedicInputSpec(CommandLineInputSpec):
     """
     model_config_file = File(exists=True, desc='deepMedic model config file.', argstr='-model %s', position=0, mandatory=True) 
     test_config_file  = File(exists=True, desc='deepMedic test config file.',   argstr='-test %s',  position=1, mandatory=True)
-    load_saved_model  = File(exists=True, desc='deepMedic saved model file.',   argstr='-load %s',  position=2, mandatory=True)
+    # load_saved_model  = File(exists=True, desc='deepMedic saved model file.',   argstr='-load %s',  position=2, mandatory=True)
     device            = traits.String(desc='device name', argstr='-dev %s', position=3, mandatory=True)
     use_gpu = traits.Bool(desc='set  the flag to use gpu')
 
@@ -473,7 +218,7 @@ class DeepMedic(CommandLine):
     
     def _list_outputs(self):
         outputs = self._outputs().get()
-        outputs['out_segmented_file'] = os.path.abspath(os.getcwd()+'/predictions/dm_cascading/predictions/pred__Segm.nii.gz')
+        outputs['out_segmented_file'] = os.path.abspath(os.getcwd()+'/predictions/deepmed_v1/predictions/pred_Segm.nii.gz')
         
         return outputs
         
