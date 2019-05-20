@@ -1,6 +1,13 @@
-from nipype.interfaces.fsl.base import CommandLine, CommandLineInputSpec
-from nipype.interfaces.base import (traits, TraitedSpec, File, isdefined,InputMultiPath)
-from nipype.interfaces.ants.base import ANTSCommand, ANTSCommandInputSpec
+# from nipype.interfaces.fsl.base import CommandLine, CommandLineInputSpec
+# from nipype.interfaces.base import (traits, TraitedSpec, File, isdefined,InputMultiPath)
+# from nipype.interfaces.ants.base import ANTSCommand, ANTSCommandInputSpec
+from nipype.interfaces.base import (
+    traits,
+    TraitedSpec,
+    CommandLineInputSpec,
+    CommandLine,
+    File
+)
 
 #from nipype.utils.filemanip import copyfile
 import os
@@ -222,3 +229,18 @@ class DeepMedic(CommandLine):
         
         return outputs
         
+class Annot2LabelInputSpec(CommandLineInputSpec):
+    input_file = File(desc="File", exists=True, mandatory=True, argstr="%s")
+
+class Annot2LabelOutputSpec(TraitedSpec):
+    output_file = File(desc = "Zip file", exists = True)
+
+class Annot2Label(CommandLine):
+    input_spec = Annot2LabelInputSpec
+    output_spec = Annot2LabelOutputSpec
+    cmd = 'gzip'
+
+    def _list_outputs(self):
+            outputs = self.output_spec().get()
+            outputs['output_file'] = os.path.abspath(self.inputs.input_file + ".gz")
+            return outputs

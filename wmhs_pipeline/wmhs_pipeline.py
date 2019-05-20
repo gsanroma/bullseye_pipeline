@@ -23,7 +23,7 @@ from configoptions import DM_MODEL_DIR
 import os
 
 
-def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, cts=False,  name='wmhs_preproc'):
+def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, opp=False, oseg=False, name='wmhs_preproc'):
 
     # set freesurfer subjects_dir to scans_dir
     os.environ['SUBJECTS_DIR'] = scans_dir
@@ -40,14 +40,17 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     templates = {"FLAIR": "{subject_id}/*FLAIR.nii.gz",
                  "T1FS": "{subject_id}/mri/orig*gz",
                  "ASEG": "{subject_id}/mri/aseg*gz",
-                 # "RIBBON": "{subject_id}/mri/ribbon.mgz",
-                 # "ANNOT_LH": "{subject_id}/label/lh.aparc.annot",
-                 # "ANNOT_RH": "{subject_id}/label/rh.aparc.annot",
-                 # "WHITE_LH": "{subject_id}/surf/lh.white",
-                 # "WHITE_RH": "{subject_id}/surf/rh.white",
-                 # "PIAL_LH": "{subject_id}/surf/lh.pial",
-                 # "PIAL_RH": "{subject_id}/surf/rh.pial",
                  }
+    if (not opp) and (not oseg):  # if you want to compute lobar parcels, then include other freesurfer data
+        templates.update({
+                     "RIBBON": "{subject_id}/mri/ribbon.mgz",
+                     "ANNOT_LH": "{subject_id}/label/lh.aparc.annot",
+                     "ANNOT_RH": "{subject_id}/label/rh.aparc.annot",
+                     "WHITE_LH": "{subject_id}/surf/lh.white",
+                     "WHITE_RH": "{subject_id}/surf/rh.white",
+                     "PIAL_LH": "{subject_id}/surf/lh.pial",
+                     "PIAL_RH": "{subject_id}/surf/rh.pial",
+                     })
 
     fileselector = pe.Node(SelectFiles(templates), name='fileselect')
     fileselector.inputs.base_directory = scans_dir
@@ -66,25 +69,6 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     reorient2std_aseg = pe.Node(interface=Reorient2Std(), name= 'reorient2std_aseg')
 
 
-    # #%%step 2: Denoise low resolution images
-    # # step 2a: Denoise FLAIR
-    # denoise_fl = pe.Node(interface=DenoiseImage(), name="denoise_fl")
-    # denoise_fl.inputs.dimension = 3
-    # denoise_fl.inputs.shrink_factor=2
-    # denoise_fl.inputs.output_image="FLAIR_denoised.nii.gz"
-    #
-    # #%% step-2b denoise T1
-    # denoise_t1 = pe.Node(interface=DenoiseImage(), name="denoise_t1")
-    # denoise_t1.inputs.dimension = 3
-    # denoise_t1.inputs.shrink_factor=2
-    # denoise_t1.inputs.output_image="T1_denoised.nii.gz"
-    #
-    # #%% step-2c denoise T2
-    # denoise_t2 = pe.Node(interface=DenoiseImage(), name="denoise_t2")
-    # denoise_t2.inputs.dimension = 3
-    # denoise_t2.inputs.shrink_factor=2
-    # denoise_t2.inputs.output_image="T2_denoised.nii.gz"
-
 
     #%% step-3: N4BiasFieldCorrect low res images
     #step 3a: N4 FLAIR
@@ -95,22 +79,6 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     n4biasfieldcorrect_fl.inputs.convergence_threshold = 1e-6
     n4biasfieldcorrect_fl.inputs.bspline_fitting_distance = 300
     n4biasfieldcorrect_fl.inputs.output_image='FLAIR_n4.nii.gz'
-
-    # #%% step-3b N4 T1
-    # n4biasfieldcorrect_t1 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t1')
-    # n4biasfieldcorrect_t1.inputs.dimension = 3
-    # n4biasfieldcorrect_t1.inputs.n_iterations = [50, 50, 30, 20]
-    # n4biasfieldcorrect_t1.inputs.convergence_threshold = 1e-6
-    # n4biasfieldcorrect_t1.inputs.bspline_fitting_distance = 300
-    # n4biasfieldcorrect_t1.inputs.output_image='T1_denoised_n4.nii.gz'
-    #
-    # #%% step-3c N4 T2
-    # n4biasfieldcorrect_t2 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_t2')
-    # n4biasfieldcorrect_t2.inputs.dimension = 3
-    # n4biasfieldcorrect_t2.inputs.n_iterations = [50, 50, 30, 20]
-    # n4biasfieldcorrect_t2.inputs.convergence_threshold = 1e-6
-    # n4biasfieldcorrect_t2.inputs.bspline_fitting_distance = 300
-    # n4biasfieldcorrect_t2.inputs.output_image='T2_denoised_n4.nii.gz'
 
 
     #%% step-4: Register FST1, T1, T2 to FLAIR using FLIRT
@@ -126,33 +94,6 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     t1fs_to_flair.inputs.interp='trilinear'
     t1fs_to_flair.inputs.out_matrix_file='FST1.mat'
     t1fs_to_flair.inputs.out_file='FST1Warped.nii'
-
-    # #%% step-4b flirt T1 to FLAIR
-    # t1_to_flair = pe.Node(interface=fsl.FLIRT(), name='t1_to_flair')
-    # t1_to_flair.inputs.cost = 'mutualinfo'
-    # t1_to_flair.inputs.dof = 12
-    # t1_to_flair.inputs.bins = 256
-    # t1_to_flair.inputs.searchr_x = [-25, 25]
-    # t1_to_flair.inputs.searchr_y = [-25, 25]
-    # t1_to_flair.inputs.searchr_z = [-25, 25]
-    # t1_to_flair.inputs.rigid2D=True
-    # t1_to_flair.inputs.interp='trilinear'
-    # t1_to_flair.inputs.out_matrix_file='T1.mat'
-    # t1_to_flair.inputs.out_file='T1Warped.nii.gz'
-    #
-    # #%% step-4c flirt T2 to FLAIR
-    # t2_to_flair = pe.Node(interface=fsl.FLIRT(), name='t2_to_flair')
-    # t2_to_flair.inputs.cost = 'mutualinfo'
-    # t2_to_flair.inputs.dof = 12
-    # t2_to_flair.inputs.bins = 256
-    # t2_to_flair.inputs.searchr_x = [-25, 25]
-    # t2_to_flair.inputs.searchr_y = [-25, 25]
-    # t2_to_flair.inputs.searchr_z = [-25, 25]
-    # t2_to_flair.inputs.rigid2D=True
-    # t2_to_flair.inputs.interp='trilinear'
-    # t2_to_flair.inputs.out_matrix_file='T2.mat'
-    # t2_to_flair.inputs.out_file='T2Warped.nii.gz'
-
 
     #%% step-4d flirt aseg to FLAIR
     aseg_to_flair = pe.Node(interface=fsl.FLIRT(), name='aseg_to_flair')
@@ -177,227 +118,65 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     convert_t2_xfm.inputs.out_file='T2inv.mat'
 
 
-    # #%%step-7: warp brainmask to T1, T2
-    # #step 7a: brainmask to T1
-    # warp_bm_to_t1 = pe.Node(interface=fsl.FLIRT(), name='brainmask_to_t1')
-    # warp_bm_to_t1.inputs.interp='nearestneighbour'
-    # warp_bm_to_t1.inputs.apply_xfm=True
-    # warp_bm_to_t1.inputs.out_file='brainmaskT1.nii.gz'
-    #
-    # #step 7b: brainmask to T2
-    # warp_bm_to_t2 = pe.Node(interface=fsl.FLIRT(), name='brainmask_to_t2')
-    # warp_bm_to_t2.inputs.interp='nearestneighbour'
-    # warp_bm_to_t2.inputs.apply_xfm=True
-    # warp_bm_to_t2.inputs.out_file='brainmaskT2.nii.gz'
-
-
-
-
-    # #%%step 8: Denoise with High resolution mask
-    # # step 8a: Denoise FLAIR
-    # denoise_hi_fl = pe.Node(interface=DenoiseImageWithMask(), name="denoise_hi_fl")
-    # denoise_hi_fl.inputs.dimension = 3
-    # denoise_hi_fl.inputs.output_image='FLAIR_denoised_hires.nii.gz'
-    #
-    # #%% step-8b denoise T1
-    # denoise_hi_t1 = pe.Node(interface=DenoiseImageWithMask(), name="denoise_hi_t1")
-    # denoise_hi_t1.inputs.dimension = 3
-    # denoise_hi_t1.inputs.output_image='T1_denoised_hires.nii.gz'
-    #
-    # #%% step-8c denoise T2
-    # denoise_hi_t2 = pe.Node(interface=DenoiseImageWithMask(), name="denoise_hi_t2")
-    # denoise_hi_t2.inputs.dimension = 3
-    # denoise_hi_t2.inputs.output_image='T2_denoised_hires.nii.gz'
-
-
-
-
-    # #%% step-9: N4BiasFieldCorrect hi res images
-    # #step 9a: N4 FLAIR
-    # n4biasfieldcorrect_hi_fl = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_hi_fl')
-    # n4biasfieldcorrect_hi_fl.inputs.dimension = 3
-    # n4biasfieldcorrect_hi_fl.inputs.n_iterations = [50, 50, 30, 20]
-    # n4biasfieldcorrect_hi_fl.inputs.convergence_threshold = 1e-6
-    # n4biasfieldcorrect_hi_fl.inputs.bspline_fitting_distance = 300
-    # n4biasfieldcorrect_hi_fl.inputs.output_image='FLAIR_denoised_n4_hires.nii.gz'
-    #
-    # #%% step-9b N4 T1
-    # n4biasfieldcorrect_hi_t1 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_hi_t1')
-    # n4biasfieldcorrect_hi_t1.inputs.dimension = 3
-    # n4biasfieldcorrect_hi_t1.inputs.n_iterations = [50, 50, 30, 20]
-    # n4biasfieldcorrect_hi_t1.inputs.convergence_threshold = 1e-6
-    # n4biasfieldcorrect_hi_t1.inputs.bspline_fitting_distance = 300
-    # n4biasfieldcorrect_hi_t1.inputs.output_image='T1_denoised_n4_hires.nii.gz'
-    #
-    # #%% step-9c N4 T2
-    # n4biasfieldcorrect_hi_t2 = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_hi_t2')
-    # n4biasfieldcorrect_hi_t2.inputs.dimension = 3
-    # n4biasfieldcorrect_hi_t2.inputs.n_iterations = [50, 50, 30, 20]
-    # n4biasfieldcorrect_hi_t2.inputs.convergence_threshold = 1e-6
-    # n4biasfieldcorrect_hi_t2.inputs.bspline_fitting_distance = 300
-    # n4biasfieldcorrect_hi_t2.inputs.output_image='T2_denoised_n4_hires.nii.gz'
-
-
-
-    # #%% step 10: warp T1, T2 to FLAIR hires
-    # #step-10a flirt T1 to FLAIR
-    # t1_to_flair_hi = pe.Node(interface=fsl.FLIRT(), name='t1_to_flair_hi')
-    # t1_to_flair_hi.inputs.out_file='T1Warped_denoised_n4_hires.nii.gz'
-    # t1_to_flair_hi.inputs.apply_xfm=True
-    # t1_to_flair_hi.inputs.interp='trilinear'
-    #
-    # #%% step-10b flirt T2 to FLAIR
-    # t2_to_flair_hi = pe.Node(interface=fsl.FLIRT(), name='t2_to_flair_hi')
-    # t2_to_flair_hi.inputs.out_file='T2Warped_denoised_n4_hires.nii.gz'
-    # t2_to_flair_hi.inputs.apply_xfm=True
-    # t2_to_flair_hi.inputs.interp='trilinear'
-
-
-    #%%step 11: register FLAIR to MNI
-
-    # ants_register_flair2mni = pe.Node(interface=Registration(), name='flair2mni')
-    # ants_register_flair2mni.inputs.dimension=3
-    # ants_register_flair2mni.inputs.output_transform_prefix = "FLAIR_to_template_"
-    # ants_register_flair2mni.inputs.float=True
-    # ants_register_flair2mni.inputs.use_histogram_matching=False
-    # ants_register_flair2mni.inputs.write_composite_transform = False
-    # ants_register_flair2mni.inputs.collapse_output_transforms = True
-    # ants_register_flair2mni.inputs.initialize_transforms_per_stage = False
-    # ants_register_flair2mni.inputs.interpolation = 'Linear'
-    # ants_register_flair2mni.inputs.metric = ['MI']*2
-    # ants_register_flair2mni.inputs.smoothing_sigmas = [[4,2,1,0],[4,2,1,0]]
-    # ants_register_flair2mni.inputs.shrink_factors = [[8,4,2,1],[8,4,2,1]]
-    # ants_register_flair2mni.inputs.transforms = ['Rigid','Affine']
-    # ants_register_flair2mni.inputs.transform_parameters = [(0.1,),(0.1,)]
-    # ants_register_flair2mni.inputs.number_of_iterations = [[1000, 500, 250, 0],[1000,500,250,0]]
-    # ants_register_flair2mni.inputs.metric_weight=[1]*2
-    # ants_register_flair2mni.inputs.radius_or_number_of_bins = [32]*2
-    # ants_register_flair2mni.inputs.sampling_strategy = ['Regular','Regular']
-    # ants_register_flair2mni.inputs.sampling_percentage = [0.25, 0.25]
-    # ants_register_flair2mni.inputs.convergence_threshold = [1.e-8, 1.e-8]
-    # ants_register_flair2mni.inputs.convergence_window_size = [10]*2
-    # ants_register_flair2mni.inputs.output_warped_image='FLAIRWarped_to_template.nii.gz'
-    # ants_register_flair2mni.inputs.fixed_image = fsl.Info.standard_image('MNI152_T1_1mm.nii.gz')
-    # ants_register_flair2mni.inputs.num_threads=num_threads
-
-
-    # #%%step 12: convert transform .mat file to .txt
-    # convert_transform_file = pe.Node(interface=ConvertTransformFile(), name='convert_transform_file')
-    # convert_transform_file.inputs.dimension=3
-    #
-    # #%%step 13: convert ANTs .txt transform to FSL
-    # c3d_affine=pe.Node(interface=C3DAffineTool(), name='c3d_affine')
-    # c3d_affine.inputs.reference_file=fsl.Info.standard_image('MNI152_T1_1mm.nii.gz')
-    # c3d_affine.inputs.ras2fsl=True
-    # c3d_affine.inputs.out_filename='FLAIR_to_template_fsl.mat'
 
     #%%step 14a maskout image FLAIR
     maskout_fl = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
                                                           function=maskout_image), name='maskout_fl')
 
-    # #step 14b maskout image T1warped
-    # maskout_t1w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
-    #                                                       function=maskout_image), name='maskout_t1w')
-    # #step 14c maskout image T2warped
-    # maskout_t2w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
-    #                                                       function=maskout_image), name='maskout_t2w')
-
-
     #%%step 15a normalize image FLAIR
     norm_fl = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['norm_outfile'],
                                                           function=normalize_image), name='norm_fl')
-
-    # #step 15b normalize image T1warped
-    # norm_t1w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['norm_outfile'],
-    #                                                       function=normalize_image), name='norm_t1w')
-    #  #step 15c normalize image T2warped
-    # norm_t2w = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['norm_outfile'],
-    #                                                       function=normalize_image), name='norm_t2w')
 
     #%%step 16 create inclusion mask to maskout all detections outside white matter using aseg in FLAIR space
     inclusion_mask_from_aseg = pe.Node(interface=util.Function(input_names=['aseg_file'], output_names=['out_file'],
                                                           function=inclusion_mask), name='inclusion_mask_from_aseg')
 
 
+    if not opp:  # if only preproc, then do not define deepmedic nodes
 
-    # #%% step-17 create master file for bianca
-    # if cts:
-    #     create_masterfile_tr = pe.Node(interface=util.Function(input_names=['flair', 't1w','t2w', 'fl2mni_matrix_file'], output_names=['master_file'],
-    #                                                     function=create_master_file_train), name='create_masterfile_tr')
-    # else:
-    #     create_masterfile_qr = pe.Node(interface=util.Function(input_names=['flair', 't1w','t2w', 'fl2mni_matrix_file'], output_names=['master_file'],
-    #                                                     function=create_master_file_query), name='create_masterfile_qr')
-    #
-    #     bianca = pe.Node(interface=Bianca(), name='bianca')
-    #     bianca.inputs.querysubjectnum=1
-    #     bianca.inputs.brainmaskfeaturenum=1
-    #     bianca.inputs.featuresubset="1,2,3"
-    #     bianca.inputs.matfeaturenum=5
-    #     bianca.inputs.spatialweight=1.0
-    #     bianca.inputs.trainingpts=2000
-    #     bianca.inputs.nonlespts=10000
-    #     bianca.inputs.out_filename='bianca_wmhseg.nii.gz'
-    #     bianca.inputs.loadclassifierdata=BIANCA_CLASSIFIER_DATA
-    #
-    #     threshold_bianca_output=pe.Node(interface=util.Function(input_names=['biancasegfile'], output_names=['thresholded_file'],
-    #                                                     function=threshold_bianca), name='threshold_bianca_output')
-    #
-    #     maskout_bianca_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
-    #                                                       function=maskout_image), name='maskout_bianca_output')
+        create_flair_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                            function=create_deepmedic_channel_file), name='create_flair_channel_config')
+        create_flair_channel_config.inputs.channel_name='flair'
 
 
-    #%% step-18 DeepMedic run
-
-    # create_t1_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
-    #                                                     function=create_deepmedic_channel_file), name='create_t1_channel_config')
-    # create_t1_channel_config.inputs.channel_name='t1'
-    #
-    #
-    # create_t2_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
-    #                                                     function=create_deepmedic_channel_file), name='create_t2_channel_config')
-    # create_t2_channel_config.inputs.channel_name='t2'
+        #create_bianca_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+        #                                                    function=create_deepmedic_channel_file), name='create_bianca_channel_config')
+        #create_bianca_channel_config.inputs.channel_name='bianca'
 
 
-    create_flair_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
-                                                        function=create_deepmedic_channel_file), name='create_flair_channel_config')
-    create_flair_channel_config.inputs.channel_name='flair'
+        create_roi_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                            function=create_deepmedic_channel_file), name='create_roi_channel_config')
+        create_roi_channel_config.inputs.channel_name='roi'
 
 
-    #create_bianca_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
-    #                                                    function=create_deepmedic_channel_file), name='create_bianca_channel_config')
-    #create_bianca_channel_config.inputs.channel_name='bianca'
+        create_pred_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
+                                                            function=create_deepmedic_channel_file), name='create_pred_channel_config')
+
+        create_pred_channel_config.inputs.channel_name='NamesOfPredictions'
 
 
-    create_roi_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
-                                                        function=create_deepmedic_channel_file), name='create_roi_channel_config')
-    create_roi_channel_config.inputs.channel_name='roi'
+        # create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 't1_channel_file','t2_channel_file','roi_channel_file','pred_channel_file'],
+        #                                                      output_names=['test_config_file'],
+        #                                                     function=create_deepmedic_config_file), name='create_dm_test_config')
+        create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 'roi_channel_file','pred_channel_file'], output_names=['test_config_file'],
+                                                            function=create_deepmedic_config_file), name='create_dm_test_config')
 
 
-    create_pred_channel_config = pe.Node(interface=util.Function(input_names=['channel_name', 'channel_file_path'], output_names=['channel_config_file'],
-                                                        function=create_deepmedic_channel_file), name='create_pred_channel_config')
+        if not oseg:  # if not only segmentation then define the lobar segmentation nodes
 
-    create_pred_channel_config.inputs.channel_name='NamesOfPredictions'
-
-
-    # create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 't1_channel_file','t2_channel_file','roi_channel_file','pred_channel_file'],
-    #                                                      output_names=['test_config_file'],
-    #                                                     function=create_deepmedic_config_file), name='create_dm_test_config')
-    create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 'roi_channel_file','pred_channel_file'], output_names=['test_config_file'],
-                                                        function=create_deepmedic_config_file), name='create_dm_test_config')
+            pass
 
 
-    deepmedicrun = pe.Node(interface=DeepMedic(), name='deepmedicrun')
-    deepmedicrun.inputs.device=device
-    # deepmedicrun.inputs.model_config_file = os.path.join(DM_MODEL_DIR, 'modelConfig_3ch_tf.cfg')
-    # deepmedicrun.inputs.load_saved_model =  os.path.join(DM_MODEL_DIR, 'generic_model_3ch_tf.all_onlydm_shahid_tf.final.2018-10-26.02.52.04.107352.model.ckpt.index')
-    deepmedicrun.inputs.model_config_file = os.path.join(DM_MODEL_DIR, 'modelConfig_1ch.cfg')
-    # deepmedicrun.inputs.load_saved_model =  os.path.join(DM_MODEL_DIR, 'best_mod_1ch.ckpt.index')
-    if device=='cuda':
-	#this will set the use_gpu attribute for the nodes input
-        deepmedicrun.inputs.use_gpu = True
+        deepmedicrun = pe.Node(interface=DeepMedic(), name='deepmedicrun')
+        deepmedicrun.inputs.device=device
+        deepmedicrun.inputs.model_config_file = os.path.join(DM_MODEL_DIR, 'modelConfig_1ch.cfg')
+        # deepmedicrun.inputs.load_saved_model =  os.path.join(DM_MODEL_DIR, 'best_mod_1ch.ckpt.index')
+        if device=='cuda':
+            #this will set the use_gpu attribute for the nodes input
+            deepmedicrun.inputs.use_gpu = True
 
-    maskout_deepmedic_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
-                                                          function=maskout_image), name='maskout_deepmedic_output')
+        maskout_deepmedic_output = pe.Node(interface=util.Function(input_names=['mask_file','image_file'], output_names=['maskoutfile'],
+                                                              function=maskout_image), name='maskout_deepmedic_output')
 
 
     #%% 18 collect outputs
@@ -450,28 +229,30 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
 
 
     #step 17 if create training set
-    wmhsppwf.connect(n4biasfieldcorrect_fl   , 'output_image',    datasinkout, '@flair')
+    wmhsppwf.connect(norm_fl   , 'norm_outfile',    datasinkout, '@flair_maskout_norm')
+    wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file', datasinkout, '@inclmask')
 
-    #outputs for deepmedic
-    wmhsppwf.connect(norm_fl                 , 'norm_outfile',       create_flair_channel_config, 'channel_file_path')
-    wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           create_roi_channel_config, 'channel_file_path')
+    if not opp:
 
-    #just a dummy input to create_pred_channel_config node
-    wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           create_pred_channel_config, 'channel_file_path')
+        #outputs for deepmedic
+        wmhsppwf.connect(norm_fl                 , 'norm_outfile',       create_flair_channel_config, 'channel_file_path')
+        wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           create_roi_channel_config, 'channel_file_path')
+
+        #just a dummy input to create_pred_channel_config node
+        wmhsppwf.connect(compute_mask_from_aseg  , 'out_file',           create_pred_channel_config, 'channel_file_path')
 
 
-    wmhsppwf.connect(create_flair_channel_config  , 'channel_config_file', create_dm_test_config, 'flair_channel_file')
-    wmhsppwf.connect(create_roi_channel_config    , 'channel_config_file', create_dm_test_config, 'roi_channel_file')
-    wmhsppwf.connect(create_pred_channel_config   , 'channel_config_file', create_dm_test_config, 'pred_channel_file')
+        wmhsppwf.connect(create_flair_channel_config  , 'channel_config_file', create_dm_test_config, 'flair_channel_file')
+        wmhsppwf.connect(create_roi_channel_config    , 'channel_config_file', create_dm_test_config, 'roi_channel_file')
+        wmhsppwf.connect(create_pred_channel_config   , 'channel_config_file', create_dm_test_config, 'pred_channel_file')
 
-    wmhsppwf.connect(create_dm_test_config        , 'test_config_file',    deepmedicrun, 'test_config_file')
+        wmhsppwf.connect(create_dm_test_config        , 'test_config_file',    deepmedicrun, 'test_config_file')
 
-    wmhsppwf.connect(deepmedicrun                 , 'out_segmented_file',  maskout_deepmedic_output, 'image_file')
-    wmhsppwf.connect(inclusion_mask_from_aseg     , 'out_file',            maskout_deepmedic_output, 'mask_file')
+        wmhsppwf.connect(deepmedicrun                 , 'out_segmented_file',  maskout_deepmedic_output, 'image_file')
+        wmhsppwf.connect(inclusion_mask_from_aseg     , 'out_file',            maskout_deepmedic_output, 'mask_file')
 
-    wmhsppwf.connect(deepmedicrun                 , 'out_segmented_file',  datasinkout,'deepmedic.@predictions')
-    wmhsppwf.connect(maskout_deepmedic_output     , 'maskoutfile',         datasinkout,'deepmedic.@pred_maskout')
-    wmhsppwf.connect(inclusion_mask_from_aseg     , 'out_file',            datasinkout,'deepmedic.@inclmask')
+        wmhsppwf.connect(deepmedicrun                 , 'out_segmented_file',  datasinkout,'deepmedic.@predictions')
+        wmhsppwf.connect(maskout_deepmedic_output     , 'maskoutfile',         datasinkout,'deepmedic.@pred_maskout')
 
     return wmhsppwf
     

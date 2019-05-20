@@ -31,8 +31,8 @@ def setenviron():
     os.environ['PATH'] = '/groups/mri-rhinelandstudy/software/c3d-1.1.0-Linux-gcc64/bin:' + os.environ['PATH']
     os.environ['PATH'] = os.path.join(os.environ['HOME'], 'CODE', 'external', 'deepmedic') + ':' + os.environ['PATH']
 
-def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, device, cts=False,  wfname='wmhs_preproc'):
-    wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,device, cts, wfname)
+def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, device, opp=False, oseg=False,  wfname='wmhs_preproc'):
+    wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,device, opp, oseg, wfname)
     wf.inputs.inputnode.subject_ids = subject_ids
     return wf
     
@@ -68,9 +68,11 @@ def main():
                         '(space separated).', \
                         default=None, required=False, nargs='+', action='append')
     
-    parser.add_argument('-c', '--create_training_set', help="Create Training Set",\
+    parser.add_argument('-r', '--only_preproc', help="Only perform pre-processing",
                         required=False, action='store_true')
-    
+    parser.add_argument('-e', '--only_segment', help="Only perform till segmentation",
+                        required=False, action='store_true')
+
     parser.add_argument('-b', '--debug', help='debug mode', action='store_true')
     
     parser.add_argument('-p', '--processes', help='overall number of parallel processes', \
@@ -92,10 +94,9 @@ def main():
                              '-w /home/sanromag/DATA/WMH/preproc/work '
                              '-o /home/sanromag/DATA/WMH/preproc/out '
                              '--subjects fff5fd4e-94dc-4f66-9ac7-950b5c4e28b5 '
+                             '-r '
                              '-d cpu '.split())
     # args = parser.parse_args()
-    
-    create_training_set = args.create_training_set
     
     scans_dir = os.path.abspath(os.path.expandvars(args.scansdir))
     if not os.path.exists(scans_dir):
@@ -138,7 +139,8 @@ def main():
     
 
     wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
-                                   args.threads,args.device, cts=create_training_set,  wfname='wmhs_preproc')
+                                   args.threads,args.device, opp=args.only_preproc,
+                                    oseg=args.only_segment, wfname='wmhs_preproc')
 
     # Visualize workflow
     if args.debug:
