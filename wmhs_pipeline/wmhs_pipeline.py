@@ -93,13 +93,13 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     t1fs_to_flair.inputs.rigid2D=True
     t1fs_to_flair.inputs.interp='trilinear'
     t1fs_to_flair.inputs.out_matrix_file='FST1.mat'
-    t1fs_to_flair.inputs.out_file='FST1Warped.nii'
+    t1fs_to_flair.inputs.out_file='FST1Warped.nii.gz'
 
     #%% step-4d flirt aseg to FLAIR
     aseg_to_flair = pe.Node(interface=fsl.FLIRT(), name='aseg_to_flair')
     aseg_to_flair.inputs.interp='nearestneighbour'
     aseg_to_flair.inputs.apply_xfm=True
-    aseg_to_flair.inputs.out_file='FLAIRaseg.nii'
+    aseg_to_flair.inputs.out_file='FLAIRaseg.nii.gz'
 
 
     #%%step-5: Create brainmask in FLAIR space
