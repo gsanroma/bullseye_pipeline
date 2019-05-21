@@ -23,7 +23,7 @@ from configoptions import DM_MODEL_DIR
 import os
 
 
-def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, opp=False, oseg=False, name='wmhs_preproc'):
+def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, opp=False, name='wmhs_preproc'):
 
     # set freesurfer subjects_dir to scans_dir
     os.environ['SUBJECTS_DIR'] = scans_dir
@@ -41,16 +41,16 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
                  "T1FS": "{subject_id}/mri/orig*gz",
                  "ASEG": "{subject_id}/mri/aseg*gz",
                  }
-    if (not opp) and (not oseg):  # if you want to compute lobar parcels, then include other freesurfer data
-        templates.update({
-                     "RIBBON": "{subject_id}/mri/ribbon.mgz",
-                     "ANNOT_LH": "{subject_id}/label/lh.aparc.annot",
-                     "ANNOT_RH": "{subject_id}/label/rh.aparc.annot",
-                     "WHITE_LH": "{subject_id}/surf/lh.white",
-                     "WHITE_RH": "{subject_id}/surf/rh.white",
-                     "PIAL_LH": "{subject_id}/surf/lh.pial",
-                     "PIAL_RH": "{subject_id}/surf/rh.pial",
-                     })
+    # if (not opp) and (not oseg):  # if you want to compute lobar parcels, then include other freesurfer data
+    #     templates.update({
+    #                  "RIBBON": "{subject_id}/mri/ribbon.mgz",
+    #                  "ANNOT_LH": "{subject_id}/label/lh.aparc.annot",
+    #                  "ANNOT_RH": "{subject_id}/label/rh.aparc.annot",
+    #                  "WHITE_LH": "{subject_id}/surf/lh.white",
+    #                  "WHITE_RH": "{subject_id}/surf/rh.white",
+    #                  "PIAL_LH": "{subject_id}/surf/lh.pial",
+    #                  "PIAL_RH": "{subject_id}/surf/rh.pial",
+    #                  })
 
     fileselector = pe.Node(SelectFiles(templates), name='fileselect')
     fileselector.inputs.base_directory = scans_dir
@@ -155,16 +155,8 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
         create_pred_channel_config.inputs.channel_name='NamesOfPredictions'
 
 
-        # create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 't1_channel_file','t2_channel_file','roi_channel_file','pred_channel_file'],
-        #                                                      output_names=['test_config_file'],
-        #                                                     function=create_deepmedic_config_file), name='create_dm_test_config')
         create_dm_test_config = pe.Node(interface=util.Function(input_names=['flair_channel_file', 'roi_channel_file','pred_channel_file'], output_names=['test_config_file'],
                                                             function=create_deepmedic_config_file), name='create_dm_test_config')
-
-
-        if not oseg:  # if not only segmentation then define the lobar segmentation nodes
-
-            pass
 
 
         deepmedicrun = pe.Node(interface=DeepMedic(), name='deepmedicrun')
