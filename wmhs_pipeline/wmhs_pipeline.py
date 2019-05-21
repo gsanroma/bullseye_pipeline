@@ -222,6 +222,7 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
 
     #step 17 if create training set
     wmhsppwf.connect(norm_fl   , 'norm_outfile',    datasinkout, '@flair_maskout_norm')
+    wmhsppwf.connect(compute_mask_from_aseg, 'out_file', datasinkout, '@brainmask')
     wmhsppwf.connect(inclusion_mask_from_aseg, 'out_file', datasinkout, '@inclmask')
 
     if not opp:
