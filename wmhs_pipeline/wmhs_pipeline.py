@@ -74,8 +74,8 @@ def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, devi
     #step 3a: N4 FLAIR
     n4biasfieldcorrect_fl = pe.Node(interface=N4BiasFieldCorrection(),  name='n4biascorrect_fl')
     n4biasfieldcorrect_fl.inputs.dimension = 3
-    # n4biasfieldcorrect_fl.inputs.n_iterations = [50, 50, 30, 20]
-    n4biasfieldcorrect_fl.inputs.n_iterations = [5, 5, 3, 2]
+    n4biasfieldcorrect_fl.inputs.n_iterations = [50, 50, 30, 20]
+    # n4biasfieldcorrect_fl.inputs.n_iterations = [5, 5, 3, 2]
     n4biasfieldcorrect_fl.inputs.convergence_threshold = 1e-6
     n4biasfieldcorrect_fl.inputs.bspline_fitting_distance = 300
     n4biasfieldcorrect_fl.inputs.output_image='FLAIR_n4.nii.gz'
