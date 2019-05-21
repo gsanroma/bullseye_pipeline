@@ -12,6 +12,23 @@ from nipype.interfaces.base import (
 #from nipype.utils.filemanip import copyfile
 import os
 
+###### set environment vars
+
+os.environ['PATH'] = '/groups/mri-rhinelandstudy/software/bin:' + os.environ['PATH']
+# os.environ['LD_LIBRARY_PATH'] = '/groups/mri-rhinelandstudy/software/curl/lib:' + os.environ['LD_LIBRARY_PATH']
+# os.environ[''] = ''
+os.environ['ANTSPATH'] = '/groups/mri-rhinelandstudy/software/ants2.3'
+os.environ['PATH'] = os.path.join(os.environ['ANTSPATH'], 'bin') + ':' + os.environ['PATH']
+os.environ['FSLDIR'] = '/groups/mri-rhinelandstudy/software/fsl/fsl6.0.0'
+os.environ['PATH'] = os.path.join(os.environ['FSLDIR'], 'bin') + ':' + os.environ['PATH']
+# subprocess.call(os.path.join(os.environ['FSLDIR'], 'etc', 'fslconf', 'fsl.sh'))
+os.environ['FREESURFER_HOME'] = '/groups/mri-rhinelandstudy/software/freesurfer/freesurfer6.0.0'
+os.environ['PATH'] = os.path.join(os.environ['FREESURFER_HOME'], 'bin') + ':' + os.environ['PATH']
+# subprocess.call(os.path.join(os.environ['FREESURFER_HOME'], 'SetUpFreeSurfer.sh'))
+os.environ['PATH'] = '/groups/mri-rhinelandstudy/software/c3d-1.1.0-Linux-gcc64/bin:' + os.environ['PATH']
+os.environ['PATH'] = os.path.join(os.environ['HOME'], 'CODE', 'external', 'deepmedic') + ':' + os.environ['PATH']
+
+#######
 
 def get_first_file(file_list):
     return file_list[0]
@@ -228,19 +245,64 @@ class DeepMedic(CommandLine):
         outputs['out_segmented_file'] = os.path.abspath(os.getcwd()+'/predictions/deepmed_v1/predictions/pred_Segm.nii.gz')
         
         return outputs
+
         
-# class Annot2LabelInputSpec(CommandLineInputSpec):
-#     input_file = File(desc="File", exists=True, mandatory=True, argstr="%s")
-#
-# class Annot2LabelOutputSpec(TraitedSpec):
-#     output_file = File(desc = "Zip file", exists = True)
-#
-# class Annot2Label(CommandLine):
-#     input_spec = Annot2LabelInputSpec
-#     output_spec = Annot2LabelOutputSpec
-#     cmd = 'gzip'
-#
-#     def _list_outputs(self):
-#             outputs = self.output_spec().get()
-#             outputs['output_file'] = os.path.abspath(self.inputs.input_file + ".gz")
-#             return outputs
+class Annot2LabelInputSpec(CommandLineInputSpec):
+    subject = traits.String(desc='subject id', argstr='--subject %s', position=0, mandatory=True)
+    hemi = traits.Enum("rh", "lh", desc="hemisphere [rh | lh]", position=1, argstr="--hemi %s", mandatory=True)
+    lobes = traits.Enum("lobes", desc='lobes type', argstr='--lobesStrict %s', position=2)
+    in_annot = traits.File(desc='input annotation file', mandatory=True)
+
+class Annot2LabelOutputSpec(TraitedSpec):
+    out_annot_file = File(desc = "lobes annotation file", exists = True)
+
+class Annot2Label(CommandLine):
+    input_spec = Annot2LabelInputSpec
+    output_spec = Annot2LabelOutputSpec
+    _cmd = os.path.join(os.environ['FREESURFER_HOME'], 'bin', 'mri_annotation2label')
+    # cmd = 'mri_annotation2label'
+
+    def _list_outputs(self):
+            outputs = self.output_spec().get()
+            outputs['out_annot_file'] = os.path.join(os.path.dirname(self.inputs.in_annot), self.inputs.hemi + ".lobes.annot")
+            return outputs
+
+    def _format_arg(self, name, spec, value):
+        if(name=='subject'):
+             # take only the last part of the subject path
+             return spec.argstr % ( os.path.basename(os.path.normpath(self.inputs.subject)))
+
+        return super(Annot2Label, self)._format_arg(name, spec, value)
+
+
+class Aparc2AsegInputSpec(CommandLineInputSpec):
+    subject = traits.String(desc='subject id', argstr='--subject %s', position=0, mandatory=True)
+    annot = traits.String(desc='name of annot file', argstr='--annot %s', position=1, mandatory=True)
+    labelwm = traits.Bool(desc='percolate white matter', argstr='--labelwm', position=2)
+    dmax = traits.Int(desc='depth to percolate', argstr='--wmparc-dmax %d', position=3)
+    rip = traits.Bool(desc='rip unknown label', argstr='--rip-unknown', position=4)
+    hypo = traits.Bool(desc='hypointensities as wm', argstr='--hypo-as-wm', position=5)
+    out_file = traits.File(desc='output aseg file', argstr='-o %s', position=6)
+
+class Aparc2AsegOutputSpec(TraitedSpec):
+    out_aseg_file = File(desc = "lobes aseg file", exists = True)
+
+class Aparc2Aseg(CommandLine):
+    input_spec = Annot2LabelInputSpec
+    output_spec = Annot2LabelOutputSpec
+    _cmd = os.path.join(os.environ['FREESURFER_HOME'], 'bin', 'mri_annotation2label')
+    # cmd = 'mri_annotation2label'
+
+    def _list_outputs(self):
+            outputs = self.output_spec().get()
+            outputs['out_annot_file'] = os.path.join(os.path.dirname(self.inputs.in_annot), self.inputs.hemi + ".lobes.annot")
+            return outputs
+
+    def _format_arg(self, name, spec, value):
+        if(name=='subject'):
+             # take only the last part of the subject path
+             return spec.argstr % ( os.path.basename(os.path.normpath(self.inputs.subject)))
+
+        return super(Annot2Label, self)._format_arg(name, spec, value)
+
+

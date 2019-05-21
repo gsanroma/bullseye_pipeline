@@ -5,7 +5,7 @@ from __future__ import print_function
 # from .wmhs_pipeline import wmhs_pipeline
 # import sys,os
 # sys.path.insert(0, os.path.join(os.environ['HOME'], 'tmp', 'pycharm_deploy_base', 'rs_wmhs_pipeline'))
-from wmhs_pipeline import wmhs_pipeline
+from wmhs_pipeline import wmhs_pipeline_preproc, wmhs_pipeline_lobes
 
 from nipype import config, logging
 
@@ -13,30 +13,18 @@ import os, sys,glob
 import argparse
 from itertools import chain
 
-def setenviron():
-
-    import subprocess
-
-    os.environ['PATH'] = '/groups/mri-rhinelandstudy/software/bin:' + os.environ['PATH']
-    # os.environ['LD_LIBRARY_PATH'] = '/groups/mri-rhinelandstudy/software/curl/lib:' + os.environ['LD_LIBRARY_PATH']
-    # os.environ[''] = ''
-    os.environ['ANTSPATH'] = '/groups/mri-rhinelandstudy/software/ants2.3'
-    os.environ['PATH'] = os.path.join(os.environ['ANTSPATH'], 'bin') + ':' + os.environ['PATH']
-    os.environ['FSLDIR'] = '/groups/mri-rhinelandstudy/software/fsl/fsl6.0.0'
-    os.environ['PATH'] = os.path.join(os.environ['FSLDIR'], 'bin') + ':' + os.environ['PATH']
-    # subprocess.call(os.path.join(os.environ['FSLDIR'], 'etc', 'fslconf', 'fsl.sh'))
-    os.environ['FREESURFER_HOME'] = '/groups/mri-rhinelandstudy/software/freesurfer/freesurfer6.0.0'
-    os.environ['PATH'] = os.path.join(os.environ['FREESURFER_HOME'], 'bin') + ':' + os.environ['PATH']
-    # subprocess.call(os.path.join(os.environ['FREESURFER_HOME'], 'SetUpFreeSurfer.sh'))
-    os.environ['PATH'] = '/groups/mri-rhinelandstudy/software/c3d-1.1.0-Linux-gcc64/bin:' + os.environ['PATH']
-    os.environ['PATH'] = os.path.join(os.environ['HOME'], 'CODE', 'external', 'deepmedic') + ':' + os.environ['PATH']
-
-def wmhs_preproc_wf(scans_dir, work_dir, outputdir,subject_ids, threads, device, opp=False, wfname='wmhs_preproc'):
-    wf = wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, threads,device, opp, wfname)
+def wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids, threads, device, opp=False, wfname='wmhs_preproc'):
+    wf = wmhs_pipeline_preproc(scans_dir, work_dir, outputdir, subject_ids, threads, device, opp, wfname)
     wf.inputs.inputnode.subject_ids = subject_ids
     return wf
-    
-    
+
+
+def wmhs_lobes_wf(scans_dir, work_dir, outputdir, subject_ids, threads, wfname='wmhs_lobes'):
+    wf = wmhs_pipeline_lobes(scans_dir, work_dir, outputdir, subject_ids, threads, wfname)
+    wf.inputs.inputnode.subject_ids = subject_ids
+    return wf
+
+
 def main():
     """
     Command line wrapper for preprocessing data
@@ -88,13 +76,14 @@ def main():
     parser.add_argument('-n', '--name', help='Pipeline workflow name', 
                         default='wmhs_pipeline')
     
-    # args = parser.parse_args('-s /home/sanromag/DATA/WMH/preproc/scans '
-    #                          '-w /home/sanromag/DATA/WMH/preproc/work '
-    #                          '-o /home/sanromag/DATA/WMH/preproc/out '
-    #                          '--subjects fff5fd4e-94dc-4f66-9ac7-950b5c4e28b5 '
-    #                          '-r '
-    #                          '-d cpu '.split())
-    args = parser.parse_args()
+    args = parser.parse_args('-s /home/sanromag/DATA/WMH/lobes/nipype/scans '
+                             '-w /home/sanromag/DATA/WMH/lobes/nipype/work '
+                             '-o /home/sanromag/DATA/WMH/lobes/nipype/out '
+                             '--subjects 80ab6d12-ccbf-4f99-ac3b-92484ff10dfb '
+                             # '-r '
+                             # '-d cpu '
+                             ''.split())
+    # args = parser.parse_args()
     
     scans_dir = os.path.abspath(os.path.expandvars(args.scansdir))
     if not os.path.exists(scans_dir):
@@ -136,19 +125,27 @@ def main():
     logging.update_logging(config)
     
 
-    wmhs_pipeline = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
-                                   args.threads,args.device, opp=args.only_preproc,
-                                    wfname='wmhs_preproc')
+    # wmhs_pipeline_preproc = wmhs_preproc_wf(scans_dir, work_dir, outputdir, subject_ids,
+    #                                args.threads,args.device, opp=args.only_preproc,
+    #                                 wfname='wmhs_preproc')
+
+    wmhs_pipeline_lobes = wmhs_lobes_wf(scans_dir, work_dir, outputdir, subject_ids, args.threads, wfname='wmhs_lobes')
 
     # Visualize workflow
     if args.debug:
-        wmhs_pipeline.write_graph(graph2use='colored', simple_form=True)
+        # wmhs_pipeline_preproc.write_graph(graph2use='colored', simple_form=True)
+        wmhs_pipeline_lobes.write_graph(graph2use='colored', simple_form=True)
 
 
 
-    wmhs_pipeline.run(
+    # wmhs_pipeline_preproc.run(
+    #                         plugin='MultiProc',
+    #                         plugin_args={'n_procs' : args.processes,'n_gpus': args.ngpus, 'ngpuproc': args.ngpuproc}
+    #                        )
+    #
+    wmhs_pipeline_lobes.run(
                             plugin='MultiProc',
-                            plugin_args={'n_procs' : args.processes,'n_gpus': args.ngpus, 'ngpuproc': args.ngpuproc}
+                            plugin_args={'n_procs' : args.processes}
                            )
 
 
@@ -156,5 +153,4 @@ def main():
 
     
 if __name__ == '__main__':
-    # setenviron()
     sys.exit(main())

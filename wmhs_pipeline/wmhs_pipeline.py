@@ -13,6 +13,7 @@ from nipype.interfaces.ants import DenoiseImage
 from nipype.interfaces.ants import N4BiasFieldCorrection
 from nipype.interfaces.ants import Registration
 
+
 from nipype import IdentityInterface, DataSink
 
 #from .utils import *
@@ -22,11 +23,63 @@ from utils import *
 from configoptions import DM_MODEL_DIR
 import os
 
-
-def wmhs_pipeline(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, opp=False, name='wmhs_preproc'):
+def wmhs_pipeline_lobes(scans_dir, work_dir, outputdir, subject_ids, threads, name='wmhs_lobes'):
 
     # set freesurfer subjects_dir to scans_dir
     os.environ['SUBJECTS_DIR'] = scans_dir
+
+
+    wmhslobeswf = pe.Workflow(name=name)
+    wmhslobeswf.base_dir = work_dir
+
+    inputnode = pe.Node(interface=IdentityInterface(fields=['subject_ids', 'outputdir']), name='inputnode')
+    inputnode.iterables = [('subject_ids', subject_ids)]
+    inputnode.inputs.subject_ids = subject_ids
+    inputnode.inputs.outputdir = outputdir
+
+    #template for input files
+    templates = {"ASEG": "{subject_id}/mri/aseg*gz",
+                 "RIBBON": "{subject_id}/mri/ribbon.mgz",
+                 "ANNOT_LH": "{subject_id}/label/lh.aparc.annot",
+                 "ANNOT_RH": "{subject_id}/label/rh.aparc.annot",
+                 "WHITE_LH": "{subject_id}/surf/lh.white",
+                 "WHITE_RH": "{subject_id}/surf/rh.white",
+                 "PIAL_LH": "{subject_id}/surf/lh.pial",
+                 "PIAL_RH": "{subject_id}/surf/rh.pial",
+                 "subject_id": "{subject_id}"
+                 }
+
+    fileselector = pe.Node(SelectFiles(templates), name='fileselect')
+    fileselector.inputs.base_directory = scans_dir
+
+    # lobar parcellation
+    annot2label_lh = pe.Node(interface=Annot2Label(), name='annot2label_lh')
+    annot2label_lh.inputs.hemi = 'lh'
+    annot2label_lh.inputs.lobes = 'lobes'
+
+    annot2label_rh = pe.Node(interface=Annot2Label(), name='annot2label_rh')
+    annot2label_rh.inputs.hemi = 'rh'
+    annot2label_rh.inputs.lobes = 'lobes'
+
+    # apar2aseg
+
+    # collect outputs
+    datasinkout = pe.Node(interface=DataSink(), name='datasinkout')
+    datasinkout.inputs.parameterization=False
+
+    # connections
+    wmhslobeswf.connect(inputnode        , 'subject_ids',      fileselector,'subject_id')
+
+    wmhslobeswf.connect(fileselector     , 'subject_id',       annot2label_lh, 'subject')
+    wmhslobeswf.connect(fileselector     , 'ANNOT_LH',         annot2label_lh, 'in_annot')
+
+    wmhslobeswf.connect(annot2label_lh   , 'out_annot_file',   datasinkout, '@annot_lh')
+
+    return(wmhslobeswf)
+
+
+
+def wmhs_pipeline_preproc(scans_dir, work_dir, outputdir, subject_ids, num_threads, device, opp=False, name='wmhs_preproc'):
 
     wmhsppwf = pe.Workflow(name=name)
     wmhsppwf.base_dir = work_dir
