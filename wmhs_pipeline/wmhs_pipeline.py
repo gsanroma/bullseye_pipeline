@@ -6,12 +6,6 @@ import nipype.interfaces.utility as util
 
 from nipype.interfaces import fsl
 from nipype.interfaces.fsl.utils import Reorient2Std
-from nipype.interfaces.fsl.maths import ApplyMask
-
-from nipype.interfaces.freesurfer.model import Binarize
-from nipype.interfaces.ants import DenoiseImage
-from nipype.interfaces.ants import N4BiasFieldCorrection
-from nipype.interfaces.ants import Registration
 
 
 from nipype import IdentityInterface, DataSink
@@ -19,18 +13,16 @@ from nipype import IdentityInterface, DataSink
 #from .utils import *
 from utils import *
 
-#from .configoptions import DM_MODEL_DIR
-from configoptions import DM_MODEL_DIR
 import os
 
-def wmhs_pipeline_lobes(scans_dir, work_dir, outputdir, subject_ids, threads, name='wmhs_lobes'):
+def wmhs_pipeline_bullseye(scans_dir, wmh_dir, work_dir, outputdir, subject_ids, name='wmhs_bullseye'):
 
     # set freesurfer subjects_dir to scans_dir
     os.environ['SUBJECTS_DIR'] = scans_dir
 
 
-    wmhslobeswf = pe.Workflow(name=name)
-    wmhslobeswf.base_dir = work_dir
+    wmhsbullwf = pe.Workflow(name=name)
+    wmhsbullwf.base_dir = work_dir
 
     inputnode = pe.Node(interface=IdentityInterface(fields=['subject_ids', 'outputdir']), name='inputnode')
     inputnode.iterables = [('subject_ids', subject_ids)]
@@ -38,19 +30,24 @@ def wmhs_pipeline_lobes(scans_dir, work_dir, outputdir, subject_ids, threads, na
     inputnode.inputs.outputdir = outputdir
 
     #template for input files
-    templates = {"ASEG": "{subject_id}/mri/aseg*gz",
-                 "RIBBON": "{subject_id}/mri/ribbon.mgz",
-                 "ANNOT_LH": "{subject_id}/label/lh.aparc.annot",
-                 "ANNOT_RH": "{subject_id}/label/rh.aparc.annot",
-                 "WHITE_LH": "{subject_id}/surf/lh.white",
-                 "WHITE_RH": "{subject_id}/surf/rh.white",
-                 "PIAL_LH": "{subject_id}/surf/lh.pial",
-                 "PIAL_RH": "{subject_id}/surf/rh.pial",
-                 "subject_id": "{subject_id}"
-                 }
+    template_scans = {"FLAIR": "{subject_id}/*FLAIR*gz",
+                      "T1FS": "{subject_id}/mri/orig*gz",
+                      "ASEG": "{subject_id}/mri/aseg*gz",
+                      "RIBBON": "{subject_id}/mri/ribbon.mgz",
+                      "ANNOT_LH": "{subject_id}/label/lh.aparc.annot",
+                      "ANNOT_RH": "{subject_id}/label/rh.aparc.annot",
+                      "WHITE_LH": "{subject_id}/surf/lh.white",
+                      "WHITE_RH": "{subject_id}/surf/rh.white",
+                      "PIAL_LH": "{subject_id}/surf/lh.pial",
+                      "PIAL_RH": "{subject_id}/surf/rh.pial",
+                      "subject_id": "{subject_id}"}
+    template_wmh = {"WMH": "{subject_id}/*Segm.nii.gz"}
 
-    fileselector = pe.Node(SelectFiles(templates), name='fileselect')
-    fileselector.inputs.base_directory = scans_dir
+    fileselector_scans = pe.Node(SelectFiles(template_scans), name='fileselect_scans')
+    fileselector_scans.inputs.base_directory = scans_dir
+
+    fileselector_wmh = pe.Node(SelectFiles(template_wmh), name='fileselect_wmh')
+    fileselector_wmh.inputs.base_directory = wmh_dir
 
     # lobar parcellation
     annot2label_lh = pe.Node(interface=Annot2Label(), name='annot2label_lh')
@@ -68,14 +65,14 @@ def wmhs_pipeline_lobes(scans_dir, work_dir, outputdir, subject_ids, threads, na
     datasinkout.inputs.parameterization=False
 
     # connections
-    wmhslobeswf.connect(inputnode        , 'subject_ids',      fileselector,'subject_id')
+    wmhsbullwf.connect(inputnode        , 'subject_ids',      fileselector_scans,'subject_id')
 
-    wmhslobeswf.connect(fileselector     , 'subject_id',       annot2label_lh, 'subject')
-    wmhslobeswf.connect(fileselector     , 'ANNOT_LH',         annot2label_lh, 'in_annot')
+    wmhsbullwf.connect(fileselector_scans     , 'subject_id',       annot2label_lh, 'subject')
+    wmhsbullwf.connect(fileselector_scans     , 'ANNOT_LH',         annot2label_lh, 'in_annot')
 
-    wmhslobeswf.connect(annot2label_lh   , 'out_annot_file',   datasinkout, '@annot_lh')
+    wmhsbullwf.connect(annot2label_lh   , 'out_annot_file',   datasinkout, '@annot_lh')
 
-    return(wmhslobeswf)
+    return(wmhsbullwf)
 
 
 
