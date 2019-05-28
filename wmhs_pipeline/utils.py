@@ -303,6 +303,6 @@ class Aparc2Aseg(CommandLine):
              # take only the last part of the subject path
              return spec.argstr % ( os.path.basename(os.path.normpath(self.inputs.subject)))
 
-        return super(Annot2Label, self)._format_arg(name, spec, value)
+        return super(Annot2Label, self)._format_arg(name, spec, value) 
 
 
