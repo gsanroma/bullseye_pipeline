@@ -283,19 +283,24 @@ class Aparc2AsegInputSpec(CommandLineInputSpec):
     rip = traits.Bool(desc='rip unknown label', argstr='--rip-unknown', position=4)
     hypo = traits.Bool(desc='hypointensities as wm', argstr='--hypo-as-wm', position=5)
     out_file = traits.File(desc='output aseg file', argstr='-o %s', position=6)
+    in_lobes_rh = traits.File(desc='input lobar file RH', mandatory=True)
+    in_lobes_lh = traits.File(desc='input lobar file LH', mandatory=True)
 
 class Aparc2AsegOutputSpec(TraitedSpec):
     out_aseg_file = File(desc = "lobes aseg file", exists = True)
 
 class Aparc2Aseg(CommandLine):
-    input_spec = Annot2LabelInputSpec
-    output_spec = Annot2LabelOutputSpec
-    _cmd = os.path.join(os.environ['FREESURFER_HOME'], 'bin', 'mri_annotation2label')
+    input_spec = Aparc2AsegInputSpec
+    output_spec = Aparc2AsegOutputSpec
+
+    input_spec.out_file = os.path.abspath('aseg_lobes.nii.gz')
+
+    _cmd = os.path.join(os.environ['FREESURFER_HOME'], 'bin', 'mri_aparc2aseg')
     # cmd = 'mri_annotation2label'
 
     def _list_outputs(self):
             outputs = self.output_spec().get()
-            outputs['out_annot_file'] = os.path.join(os.path.dirname(self.inputs.in_annot), self.inputs.hemi + ".lobes.annot")
+            outputs['out_aseg_file'] = self.inputs.out_file
             return outputs
 
     def _format_arg(self, name, spec, value):
@@ -303,6 +308,6 @@ class Aparc2Aseg(CommandLine):
              # take only the last part of the subject path
              return spec.argstr % ( os.path.basename(os.path.normpath(self.inputs.subject)))
 
-        return super(Annot2Label, self)._format_arg(name, spec, value) 
+        return super(Aparc2Aseg, self)._format_arg(name, spec, value)
 
 

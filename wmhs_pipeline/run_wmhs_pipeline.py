@@ -34,7 +34,7 @@ def main():
     parser.add_argument('-p', '--processes', help='overall number of parallel processes', default=1, type=int)
     parser.add_argument('-n', '--name', help='Pipeline workflow name', default='wmh_bullseye_pipeline')
     
-    args = parser.parse_args('-s /home/sanromag/DATA/WMH/data_nodenoise/scans '
+    args = parser.parse_args('-s /home/sanromag/DATA/WMH/data_nodenoise/scans2 '
                              '-x /home/sanromag/DATA/WMH/data_nodenoise/wmh_pipeline/out2 '
                              '-w /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/work '
                              '-o /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/out '
@@ -57,12 +57,12 @@ def main():
         subject_ids = [os.path.basename(s.rstrip('/')) for s in subject_ids]
 
 
-    print ("Creating wmhs pipeline workflow...")
+    print ("Creating bullseye pipeline workflow...")
     wmh_dir = scans_dir
     if args.wmhdir is not None:
         wmh_dir = os.path.abspath(os.path.expandvars(args.wmhdir))
     work_dir = os.path.abspath(os.path.expandvars(args.workdir))
-    output_dir = os.path.abspath(os.path.expandvars(args.outputdir))
+    output_dir = os.path.abspath(os.path.expandvars(args.output_dir))
     
     if not os.path.exists(work_dir):
         os.makedirs(work_dir)
