@@ -38,6 +38,7 @@ def main():
                              '-x /home/sanromag/DATA/WMH/data_nodenoise/wmh_pipeline/out2 '
                              '-w /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/work '
                              '-o /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/out '
+                             '-p 5 '
                              '--subjects 0825d8e6-db27-4802-b848-3e408cbf38ba '
                              ''.split())
 
