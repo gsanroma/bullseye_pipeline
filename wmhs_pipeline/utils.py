@@ -145,7 +145,7 @@ def inclusion_mask(aseg_file):
     return os.path.abspath('inclmask.nii.gz')
 
 
-def filter_labels(in_file, include_superlist, fixed_id=None):
+def filter_labels(in_file, include_superlist, fixed_id=None, map_pairs_list=None):
 
     import nibabel as nib
     import numpy as np
@@ -161,7 +161,12 @@ def filter_labels(in_file, include_superlist, fixed_id=None):
             if fixed_id is not None: value = fixed_id[0]
             out0[in0 == label] = value
 
-    out_final = out0
+    if map_pairs_list is not None:
+        out1 = np.copy(out0)
+        for map_pair in map_pairs_list:
+            out1[out0 == map_pair[0]] = map_pair[1]
+
+    out_final = out0 if not map_pairs_list else out1
     out_nib = nib.Nifti1Image(out_final, in_nib.affine, in_nib.header)
     nib.save(out_nib, 'filtered.nii.gz')
 
@@ -190,6 +195,28 @@ def norm_dist_map(orig_file, dest_file):
     nib.save(ndist_nib, 'ndist.nii.gz')
 
     return os.path.abspath('ndist.nii.gz')
+
+
+def merge_labels(in1_file, in2_file):
+
+    import os
+    import nibabel as nib
+
+    in1_nib = nib.load(in1_file)
+    in2_nib = nib.load(in2_file)
+
+    assert in1_nib.header.get_data_shape() == in2_nib.header.get_data_shape(), "Different shapes of images"
+
+    in1 = in1_nib.get_data()
+    in2 = in2_nib.get_data()
+
+    mask = in2 > 0
+    in1[mask] = in2[mask]  # overwrite in1 where in2 > 0
+
+    out_nib = nib.Nifti1Image(in1, in1_nib.affine, in1_nib.header)
+    nib.save(out_nib, 'merged.nii.gz')
+
+    return os.path.abspath('merged.nii.gz')
 
 
 def generate_wmparc(incl_file, ndist_file, label_file, incl_labels=None, verbose=False):

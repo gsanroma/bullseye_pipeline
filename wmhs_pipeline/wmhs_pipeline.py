@@ -75,20 +75,29 @@ def wmhs_pipeline_bullseye(scans_dir, wmh_dir, work_dir, outputdir, subject_ids,
     aparc2aseg.inputs.hypo = True
     aparc2aseg.inputs.out_file = 'lobes+aseg.nii.gz'
 
-    filter_lobes = pe.Node(interface=util.Function(input_names=['in_file', 'include_superlist', 'fixed_id'], output_names=['out_file'],
+    filter_lobes = pe.Node(interface=util.Function(input_names=['in_file', 'include_superlist', 'fixed_id', 'map_pairs_list'], output_names=['out_file'],
                                                    function=filter_labels), name='filter_lobes')
     filter_lobes.inputs.include_superlist = [[3001, 3007], [4001, 4007], [3004], [4004], [3005], [4005], [3006], [4006]]  # lobar labels in WM
     filter_lobes.inputs.fixed_id = None
+    filter_lobes.inputs.map_pairs_list = [[3001, 11], [4001, 21], [3004, 12], [4004, 22], [3005, 13], [4005, 23], [3006, 14], [4006, 24]]
 
-    ventricles_mask = pe.Node(interface=util.Function(input_names=['in_file', 'include_superlist', 'fixed_id'], output_names=['out_file'],
+    ventricles_mask = pe.Node(interface=util.Function(input_names=['in_file', 'include_superlist', 'fixed_id', 'map_pairs_list'], output_names=['out_file'],
                                                 function=filter_labels), name='ventricles_mask')
     ventricles_mask.inputs.include_superlist = [[43, 4]]
     ventricles_mask.inputs.fixed_id = [1]
+    ventricles_mask.inputs.map_pairs_list = None
 
-    cortex_mask = pe.Node(interface=util.Function(input_names=['in_file', 'include_superlist', 'fixed_id'], output_names=['out_file'],
+    cortex_mask = pe.Node(interface=util.Function(input_names=['in_file', 'include_superlist', 'fixed_id', 'map_pairs_list'], output_names=['out_file'],
                                                   function=filter_labels), name='cortex_mask')
     cortex_mask.inputs.include_superlist = [[1001, 2001, 1004, 2004, 1005, 2005, 1006, 2006]]  # lobar labels in cortex
     cortex_mask.inputs.fixed_id = [1]
+    cortex_mask.inputs.map_pairs_list = None
+
+    bgt_mask = pe.Node(interface=util.Function(input_names=['in_file', 'include_superlist', 'fixed_id', 'map_pairs_list'], output_names=['out_file'],
+                                               function=filter_labels), name='bgt_mask')
+    bgt_mask.inputs.include_superlist = [[10, 49, 11, 12, 50, 51, 26, 58, 13, 52]]  # basal ganglia + thalamus
+    bgt_mask.inputs.fixed_id = [5]
+    bgt_mask.inputs.map_pairs_list = None
 
     ndist_map = pe.Node(interface=util.Function(input_names=['orig_file', 'dest_file'], output_names=['out_file'],
                                                 function=norm_dist_map), name='ndist_map')
@@ -97,6 +106,9 @@ def wmhs_pipeline_bullseye(scans_dir, wmh_dir, work_dir, outputdir, subject_ids,
                                                  function=generate_wmparc), name='gen_wmparc')
     gen_wmparc.inputs.incl_labels = [3003, 4003, 5001, 5002] # the labels that need to be 'filled'
     gen_wmparc.inputs.verbose = False
+
+    lobe_wmparc = pe.Node(interface=util.Function(input_names=['in1_file', 'in2_file'], output_names=['out_file'],
+                                                  function=merge_labels), name='lobar_parcels')
 
     # collect outputs
     datasinkout = pe.Node(interface=DataSink(), name='datasinkout')
@@ -118,6 +130,7 @@ def wmhs_pipeline_bullseye(scans_dir, wmh_dir, work_dir, outputdir, subject_ids,
     # wmhsbullwf.connect(fileselector_scans     , 'ASEG',         convert_aseg_mgz, 'in_file')
     wmhsbullwf.connect(aparc2aseg     , 'out_file',         ventricles_mask, 'in_file')
     wmhsbullwf.connect(aparc2aseg     , 'out_file',         cortex_mask, 'in_file')
+    wmhsbullwf.connect(aparc2aseg     , 'out_file',         bgt_mask, 'in_file')
 
     wmhsbullwf.connect(ventricles_mask     , 'out_file',         ndist_map, 'orig_file')
     wmhsbullwf.connect(cortex_mask     , 'out_file',         ndist_map, 'dest_file')
@@ -126,7 +139,10 @@ def wmhs_pipeline_bullseye(scans_dir, wmh_dir, work_dir, outputdir, subject_ids,
     wmhsbullwf.connect(ndist_map     , 'out_file',         gen_wmparc, 'ndist_file')
     wmhsbullwf.connect(filter_lobes     , 'out_file',         gen_wmparc, 'label_file')
 
-    wmhsbullwf.connect(gen_wmparc   , 'out_file',   datasinkout, '@wmparc')
+    wmhsbullwf.connect(gen_wmparc     , 'out_file',         lobe_wmparc, 'in1_file')
+    wmhsbullwf.connect(bgt_mask     , 'out_file',         lobe_wmparc, 'in2_file')
+
+    wmhsbullwf.connect(lobe_wmparc   , 'out_file',   datasinkout, '@lobe_wmparc')
 
     return(wmhsbullwf)
 
