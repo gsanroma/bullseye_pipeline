@@ -33,15 +33,15 @@ def main():
     parser.add_argument('-p', '--processes', help='overall number of parallel processes', default=1, type=int)
     parser.add_argument('-n', '--name', help='Pipeline workflow name', default='bullseye_pipeline')
     
-    args = parser.parse_args('-s /home/sanromag/DATA/WMH/data_nodenoise/scans2 '
-                             '-w /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/work '
-                             '-o /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/out '
-                             '-p 5 '
-                             '-b '
-                             '--subjects 0825d8e6-db27-4802-b848-3e408cbf38ba '
-                             ''.split())
+    # args = parser.parse_args('-s /home/sanromag/DATA/WMH/data_nodenoise/scans2 '
+    #                          '-w /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/work '
+    #                          '-o /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/out '
+    #                          '-p 5 '
+    #                          '-b '
+    #                          '--subjects 0825d8e6-db27-4802-b848-3e408cbf38ba '
+    #                          ''.split())
 
-    # args = parser.parse_args()
+    args = parser.parse_args()
     
     scans_dir = os.path.abspath(os.path.expandvars(args.scansdir))
     if not os.path.exists(scans_dir):
