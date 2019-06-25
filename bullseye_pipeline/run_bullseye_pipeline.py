@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 
-# from .wmhs_pipeline import wmhs_pipeline_bullseye
-from wmhs_pipeline import wmhs_pipeline_bullseye
+# from .bullseye_pipeline import bullseye_pipeline
+from bullseye_pipeline import bullseye_pipeline
 
 from nipype import config, logging
 
@@ -11,8 +11,8 @@ import os, sys,glob
 import argparse
 from itertools import chain
 
-def wmhs_bullseye_wf(scans_dir, wmh_dir, work_dir, outputdir, subject_ids, wfname='wmhs_bullseye'):
-    wf = wmhs_pipeline_bullseye(scans_dir, wmh_dir, work_dir, outputdir, subject_ids, wfname)
+def bullseye_workflow(scans_dir, work_dir, outputdir, subject_ids, wfname='bullseye'):
+    wf = bullseye_pipeline(scans_dir, work_dir, outputdir, subject_ids, wfname)
     wf.inputs.inputnode.subject_ids = subject_ids
     return wf
 
@@ -21,21 +21,19 @@ def main():
     """
     Command line wrapper for preprocessing data
     """
-    parser = argparse.ArgumentParser(description='Computes regional WMHs load using bullseye representation',
-                                     epilog='Example-1: {prog} -s ~/data/scans -x ~/data/wmh_dir -w ~/data/work_dir -p 2 --subjects subj1 subj2 \n\n'
+    parser = argparse.ArgumentParser(description='Parcellates subject according to bullseye representation',
+                                     epilog='Example-1: {prog} -s ~/data/scans -w ~/data/work_dir -p 2 --subjects subj1 subj2 \n\n'
                                      .format(prog=os.path.basename(sys.argv[0])), formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument('-s', '--scansdir', help='Scans directory with the data for each subject', required=True)
-    parser.add_argument('-x', '--wmhdir', help='Directory with the WMH segmentation masks (same as \'scansdir\' if not provided)')
     parser.add_argument('-w', '--workdir', help='Work directory where data will be processed', required=True)
     parser.add_argument('-o', '--output_dir', help='Output directory where results will be stored', required=True)
     parser.add_argument('--subjects', help='One or more subject IDs (space separated)', default=None, required=False, nargs='+', action='append')
     parser.add_argument('-b', '--debug', help='debug mode', action='store_true')
     parser.add_argument('-p', '--processes', help='overall number of parallel processes', default=1, type=int)
-    parser.add_argument('-n', '--name', help='Pipeline workflow name', default='wmh_bullseye_pipeline')
+    parser.add_argument('-n', '--name', help='Pipeline workflow name', default='bullseye_pipeline')
     
     args = parser.parse_args('-s /home/sanromag/DATA/WMH/data_nodenoise/scans2 '
-                             '-x /home/sanromag/DATA/WMH/data_nodenoise/wmh_pipeline/out2 '
                              '-w /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/work '
                              '-o /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/out '
                              '-p 5 '
@@ -59,9 +57,6 @@ def main():
 
 
     print ("Creating bullseye pipeline workflow...")
-    wmh_dir = scans_dir
-    if args.wmhdir is not None:
-        wmh_dir = os.path.abspath(os.path.expandvars(args.wmhdir))
     work_dir = os.path.abspath(os.path.expandvars(args.workdir))
     output_dir = os.path.abspath(os.path.expandvars(args.output_dir))
     
@@ -87,16 +82,16 @@ def main():
     logging.update_logging(config)
     
 
-    wmhs_bullseye_pipeline = wmhs_bullseye_wf(scans_dir, wmh_dir, work_dir, output_dir, subject_ids, wfname='wmhs_lobes')
+    bullseye_pipeline = bullseye_workflow(scans_dir, work_dir, output_dir, subject_ids, wfname='bullseye')
 
     # Visualize workflow
     if args.debug:
-        wmhs_bullseye_pipeline.write_graph(graph2use='colored', simple_form=True)
+        bullseye_pipeline.write_graph(graph2use='colored', simple_form=True)
 
-    wmhs_bullseye_pipeline.run(plugin='MultiProc', plugin_args={'n_procs' : args.processes})
+    bullseye_pipeline.run(plugin='MultiProc', plugin_args={'n_procs' : args.processes})
 
 
-    print('Done WMHs bullseye pipeline!!!')
+    print('Done bullseye pipeline!!!')
 
     
 if __name__ == '__main__':
