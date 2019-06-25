@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 
-# from .bullseye_pipeline import bullseye_pipeline
-from bullseye_pipeline import bullseye_pipeline
+from .bullseye_pipeline import bullseye_pipeline
+# from bullseye_pipeline import bullseye_pipeline
 
 from nipype import config, logging
 
@@ -37,6 +37,7 @@ def main():
                              '-w /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/work '
                              '-o /home/sanromag/DATA/WMH/data_nodenoise/bullseye_pipeline/out '
                              '-p 5 '
+                             '-b '
                              '--subjects 0825d8e6-db27-4802-b848-3e408cbf38ba '
                              ''.split())
 

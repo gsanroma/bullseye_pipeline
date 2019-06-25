@@ -6,8 +6,8 @@ import nipype.interfaces.utility as util
 
 from nipype import IdentityInterface, DataSink
 
-#from .utils import *
-from utils import *
+from .utils import *
+# from utils import *
 
 import os
 
