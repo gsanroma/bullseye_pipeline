@@ -142,8 +142,9 @@ def merge_labels(in1_file, in2_file, out_file='merged.nii.gz', intersect=False):
             for u2 in u2_set:
                 if u2 == 0: continue
                 mask2 = in2 == u2
-                if not np.any(mask2): continue
-                out[np.logical_and(mask1, mask2)] = int(str(u1) + str(u2))  # new label id by concatenating [u1, u2]
+                mask3 = np.logical_and(mask1, mask2)
+                if not np.any(mask3): continue
+                out[mask3] = int(str(u1) + str(u2))  # new label id by concatenating [u1, u2]
 
         aux_hdr = in1_nib.header
         aux_hdr.set_data_dtype(np.int32)
