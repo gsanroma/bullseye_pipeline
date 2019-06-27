@@ -3,6 +3,9 @@ Pipeline for creating a _bullseye parcellation_ of the cerebral whiter matter us
 It provides an (anatomy-independent) spatial localization based on an radial component (ie, lobes) and a depth component.
 It can be used to obtain region-specific quantification of white matter parameters (eg, a similar approach has been used to quantify regional white matter hyperintensity load in [this](https://doi.org/10.1016/j.neurad.2017.10.001) and [this](https://doi.org/10.1016/j.jalz.2014.07.155) papers). 
 
+This document explains how to use the package.
+The internals of the process are explained in [this](https://gsanroma.github.io/posts/2019/06/bullseye-parcellation/) blog post.
+
 - the _bullseye parcellation_ is the intersection of a _lobar_ parcellation and a _depth_ parcellation
 
 ![](images/bull.png)
