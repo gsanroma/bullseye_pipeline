@@ -1,7 +1,7 @@
 # bullseye pipeline
 Pipeline for creating a _bullseye parcellation_ of the cerebral whiter matter using part of the FreeSurfer output and commands.
 It provides an (anatomy-independent) spatial localization based on an radial component (ie, lobes) and a depth component.
-It can be used to obtain region-specific quantification of white matter parameters (eg, a similar approach has been used to quantify regional white matter hyperintensity load in [this](https://doi.org/10.1016/j.neurad.2017.10.001) and [this](https://doi.org/10.1016/j.jalz.2014.07.155) papers). 
+It can be used to obtain region-specific quantification of white matter parameters (eg, a similar approach has been used to quantify regional white matter hyperintensity load in [this](https://link.springer.com/chapter/10.1007/978-3-030-00919-9_10) and [this](https://doi.org/10.1016/j.neurad.2017.10.001) papers). 
 
 This document explains how to use the package.
 The internals of the process are explained in [this](https://gsanroma.github.io/posts/2019/06/bullseye-parcellation/) blog post.
