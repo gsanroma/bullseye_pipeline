@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 # from .bullseye_pipeline import bullseye_pipeline
-from bullseye_pipeline import bullseye_pipeline
+from bullseye_pipeline import create_bullseye_pipeline
 
 from nipype import config, logging
 
@@ -12,7 +12,7 @@ import argparse
 from itertools import chain
 
 def bullseye_workflow(scans_dir, work_dir, outputdir, subject_ids, wfname='bullseye'):
-    wf = bullseye_pipeline(scans_dir, work_dir, outputdir, subject_ids, wfname)
+    wf = create_bullseye_pipeline(scans_dir, work_dir, outputdir, subject_ids, wfname)
     wf.inputs.inputnode.subject_ids = subject_ids
     return wf
 

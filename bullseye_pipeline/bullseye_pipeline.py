@@ -11,7 +11,7 @@ from utils import *
 
 import os
 
-def bullseye_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='bullseye_pipeline'):
+def create_bullseye_pipeline(scans_dir, work_dir, outputdir, subject_ids, name='bullseye_pipeline'):
 
     # set freesurfer subjects_dir to scans_dir
     os.environ['SUBJECTS_DIR'] = scans_dir
