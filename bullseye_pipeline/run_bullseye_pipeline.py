@@ -2,8 +2,8 @@
 
 from __future__ import print_function
 
-from .bullseye_pipeline import bullseye_pipeline
-# from bullseye_pipeline import bullseye_pipeline
+# from .bullseye_pipeline import bullseye_pipeline
+from bullseye_pipeline import bullseye_pipeline
 
 from nipype import config, logging
 
